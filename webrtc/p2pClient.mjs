@@ -4,6 +4,15 @@ import { newWsClient } from './wsClient.mjs';
 import { refreshIdToken } from './cognito.mjs';
 import { TextDecoder, fromBase64 } from '../EncodeDecode.mjs';
 import { QjsPeer } from './qjsPeer.mjs';
+import { dispatchInit, dispatchDrain } from 'socket.so';
+
+
+const wakeFd = dispatchInit();
+const wakeScratch = new Uint8Array( 64 );
+os.setReadHandler( wakeFd, () => {
+	os.read( wakeFd, wakeScratch.buffer, 0, wakeScratch.length );
+	dispatchDrain();
+} );
 
 const dec = new TextDecoder;
 
@@ -84,6 +93,7 @@ async function start() {
 	} );
 
 	wsc.on( 'message', ( message ) => {
+		console.log( `wsc.onMessage: ${ message }` );
 		const msg = JSON.parse( message );
 		const msgType = msg.type ? msg.type : msg?.data?.type;
 		switch ( msgType ) {

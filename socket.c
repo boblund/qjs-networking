@@ -18,6 +18,23 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+/* near the top, with other includes */
+#include "js_dispatch.h"
+
+/* ---- dispatch pipe-fallback init/drain, exposed to JS for headless apps ---- */
+
+static JSValue js_dispatch_init(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    int fds[2];
+    if (pipe(fds) != 0) return JS_ThrowInternalError(ctx, "pipe() failed");
+    js_dispatch_init_pipe_fallback(fds[1]);
+    return JS_NewInt32(ctx, fds[0]);
+}
+
+static JSValue js_dispatch_drain(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    js_dispatch_drain_pipe_queue();
+    return JS_UNDEFINED;
+}
+
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
 #ifdef JS_SHARED_LIBRARY
@@ -294,7 +311,7 @@ static JSValue js_client_connect(JSContext *ctx, JSValueConst this_val,
     if (inet_pton(AF_INET, v4, &server_addr.sin_addr) <= 0) { //if (inet_pton(AF_INET6, c_ip, &server_addr.sin6_addr) <= 0) {
         perror("inet_pton"); close(client_fd); exit(EXIT_FAILURE);
     }
-		printf( "v4: %s\n", v4 );
+
     if (connect(client_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("connect"); close(client_fd); exit(EXIT_FAILURE);
     }
@@ -623,7 +640,6 @@ static int js_socket_init(JSContext *ctx, JSModuleDef *m)
     client_class = JS_NewCFunction2(ctx, js_client_ctor, "Client", 2, JS_CFUNC_constructor, 0);
     JS_SetConstructor(ctx, client_class, client_proto);
     JS_SetClassProto(ctx, js_client_class_id, client_proto);
-
     JS_SetModuleExport(ctx, m, "Client", client_class);
 
     /* create the Server class */
@@ -635,8 +651,12 @@ static int js_socket_init(JSContext *ctx, JSModuleDef *m)
     server_class = JS_NewCFunction2(ctx, js_server_ctor, "Server", 2, JS_CFUNC_constructor, 0);
     JS_SetConstructor(ctx, server_class, server_proto);
     JS_SetClassProto(ctx, js_server_class_id, server_proto);
-
     JS_SetModuleExport(ctx, m, "Server", server_class);
+
+		JS_SetModuleExport(ctx, m, "dispatchInit",
+    JS_NewCFunction(ctx, js_dispatch_init, "dispatchInit", 0));
+		JS_SetModuleExport(ctx, m, "dispatchDrain",
+    JS_NewCFunction(ctx, js_dispatch_drain, "dispatchDrain", 0));
 
 		// JS_SetModuleExport(ctx, m, "someFunction",
     // JS_NewCFunction(ctx, js_some_function, "someFunction", 1));  // 1 = expected arg count
@@ -659,6 +679,8 @@ JSModuleDef *JS_INIT_MODULE(JSContext *ctx, const char *module_name)
         return NULL;
     JS_AddModuleExport(ctx, m, "Client");
 		JS_AddModuleExport(ctx, m, "Server");
+		JS_AddModuleExport(ctx, m, "dispatchInit");
+		JS_AddModuleExport(ctx, m, "dispatchDrain");
 		// JS_AddModuleExport(ctx, m, "someFunction"); // example of exporting a function
     return m;
 }

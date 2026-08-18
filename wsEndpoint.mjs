@@ -304,6 +304,7 @@ class WsEndpoint {
 	}
 
 	send( message ) {
+		console.log( `wsEndpoint send: ${ message }` );
 		const payload = enc.encode( message );
 		const frame = wsFrame( typeof message == 'string' ? 0x1 : 0x2, payload );
 		os.write( this.#fds[1], frame.buffer, 0, frame.length );

@@ -32,12 +32,14 @@ class QjsPeer{
 
 	listenerNames = Object.keys( this.listeners );
 
-	constructor( { initiator, label } = { initiator: false, label: 'not_set' } ){
+	constructor( { initiator, label, dispatch } = { initiator: false, label: 'not_set', dispatch: false } ){
 		this.agent = new PeerConnection( {
 			stun_host: "stun.l.google.com",
 			stun_port: 19302,
 			initiator,
-			label
+			label,
+			dispatch,
+			onEvent: ( type, bytes ) => handleEvent( type, bytes )   // register before any native work starts
 		} );
 
 		this.initiator = initiator;
@@ -92,53 +94,61 @@ class QjsPeer{
 // and data received over the channel frome the peer
 // ---------------------------------------------------------------------------
 
+let handleEvent;
 function dcMsgHandler( qjspeer ) {
 	const dec = new TextDecoder();
-	os.setReadHandler( qjspeer.agent.fd, () => {
-		const msg = readMsg( qjspeer.agent.fd );
-		switch ( msg.type ) {
+
+	handleEvent = ( type, bytes ) => {
+		switch ( type ) {
 			case PeerConnection.MSG_SDP:
-				qjspeer.listeners.sdp( dec.decode( msg.data ) );
+				qjspeer.listeners.sdp( dec.decode( bytes ) );
 				break;
 
 			case PeerConnection.MSG_DC_OPEN:
-				// DataChannel is open — safe to send now
-				//console.log( `datachannel open: ${ dec.decode( msg.data ) }` );
 				qjspeer.agent.dcOpen();
 				break;
 
 			case PeerConnection.MSG_DC_CLOSE:
-				console.log( `datachannel closed: ${ dec.decode( msg.data ) }` );
+				console.log( `datachannel closed: ${ dec.decode( bytes ) }` );
 				break;
 
 			case PeerConnection.MSG_CONNECTED:
-				// ICE connected — DataChannel may not be open yet; wait for MSG_DC_OPEN
 				console.log( 'ICE connected' );
 				break;
 
 			case PeerConnection.MSG_DISCONNECTED:
-				os.setReadHandler( qjspeer.agent.fd, null );
+				if( 'fd' in qjspeer.agent ) os.setReadHandler( qjspeer.agent.fd, null );
 				qjspeer.listeners.disconnect();
 				break;
 
-			case PeerConnection.MSG_DATA: // message from peer
-				const [ text, typeLength ] = [ msg.data[0] >> 7, msg.data[0] & 0x7F ];
-				const type = dec.decode( msg.data.slice( 1, 1 + typeLength ) );
+			case PeerConnection.MSG_DATA:
+				const [ text, typeLength ] = [ bytes[0] >> 7, bytes[0] & 0x7F ];
+				const msgType = dec.decode( bytes.slice( 1, 1 + typeLength ) );
 				const data = text == 1
-					? JSON.parse( dec.decode( msg.data.slice( 1 + typeLength ) ) )
-					: msg.data.slice( 1 + typeLength );
-				qjspeer.listeners.data( { type, data } );
+					? JSON.parse( dec.decode( bytes.slice( 1 + typeLength ) ) )
+					: bytes.slice( 1 + typeLength );
+				qjspeer.listeners.data( { type: msgType, data } );
 				break;
 
-			case PeerConnection.MSG_BUFFERED_LOW: // datachannel ready for more messages
-				console.log( 'MSG_BUFFERED_LOW' );
+			case PeerConnection.MSG_BUFFERED_LOW:
 				qjspeer.pump();
 				break;
 
 			default:
 				break;
 		}
-	} );
+	};
+
+	if ( 'fd' in qjspeer.agent ) {
+		os.setReadHandler( qjspeer.agent.fd, () => {
+			const msg = readMsg( qjspeer.agent.fd );
+			handleEvent( msg.type, msg.data );
+		} );
+	} else {
+		qjspeer.agent.setEventHandler( handleEvent );   // (type, bytes) => ...
+	}
+
+
 }
 
 // ---------------------------------------------------------------------------

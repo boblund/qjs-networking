@@ -12,6 +12,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
@@ -19,6 +21,8 @@
 #include <arpa/inet.h>   // htonl
 #include "quickjs.h"
 #include "rtc/rtc.h"     // libdatachannel C API
+#include <pthread.h>
+#include "js_dispatch.h"
 
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -57,16 +61,6 @@ static bool write_all(int fd, const void *buf, size_t len) {
     return true;
 }
 
-static bool write_msg(int fd, msg_type_t type, const void *payload, uint32_t len) {
-    uint8_t header[5];
-    uint32_t net_len = htonl(len);
-    header[0] = (uint8_t)type;
-    memcpy(header + 1, &net_len, 4);
-    if (!write_all(fd, header, 5)) return false;
-    if (len > 0 && !write_all(fd, payload, len)) return false;
-    return true;
-}
-
 // ---------------------------------------------------------------------------
 // Per-PeerConnection context
 // ---------------------------------------------------------------------------
@@ -78,18 +72,94 @@ typedef struct {
     int  read_fd;      // JS reads events from here (exposed as .fd)
     bool initiator;
 		bool sdp_sent;
+		bool dispatch;
+		JSContext     *jsctx;	// this and following new for qjswebview
+    JSValue        on_event;      /* dup'd JS function: (bytes: Uint8Array) => void */
+    pthread_mutex_t on_event_lock; /* protects on_event across threads */
 } dc_ctx_t;
+
+typedef struct {
+    JSContext *jsctx;
+    JSValue    on_event;   /* already dup'd before this struct is built */
+		msg_type_t type;
+    uint8_t   *data;
+    uint32_t   len;
+} dc_message_event_t;
+
+static void dc_message_main_thread(void *arg) {
+    dc_message_event_t *ev = (dc_message_event_t *)arg;
+    JSContext *ctx = ev->jsctx;
+
+    JSValue buf = ev->len > 0
+        ? JS_NewArrayBufferCopy(ctx, ev->data, ev->len)
+        : JS_NewArrayBufferCopy(ctx, (uint8_t[]){0}, 0);
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue u8ctor = JS_GetPropertyStr(ctx, global, "Uint8Array");
+    JSValue bytes = JS_CallConstructor(ctx, u8ctor, 1, (JSValueConst *)&buf);
+    JS_FreeValue(ctx, u8ctor);
+    JS_FreeValue(ctx, global);
+    JS_FreeValue(ctx, buf);
+
+    JSValue args[2];
+    args[0] = JS_NewInt32(ctx, ev->type);
+    args[1] = bytes;
+
+    JSValue ret = JS_Call(ctx, ev->on_event, JS_UNDEFINED, 2, (JSValueConst *)args);
+    if (JS_IsException(ret)) {
+        JSValue exc = JS_GetException(ctx);
+        const char *msg = JS_ToCString(ctx, exc);
+        fprintf(stderr, "dc event handler threw: %s\n", msg);
+        JS_FreeCString(ctx, msg);
+        JS_FreeValue(ctx, exc);
+    }
+    JS_FreeValue(ctx, ret);
+    JS_FreeValue(ctx, bytes);
+    JS_FreeValue(ctx, ev->on_event);   /* balances the dup taken in dc_emit_msg */
+
+    JSContext *ctx1;
+    while (JS_ExecutePendingJob(JS_GetRuntime(ctx), &ctx1) > 0);
+
+    free(ev->data);
+    free(ev);
+}
 
 // ---------------------------------------------------------------------------
 // libdatachannel callbacks  (called from internal threads — write to pipe only)
 // ---------------------------------------------------------------------------
 
-/*static void cb_local_description(int pc, const char *sdp, const char *type, void *user_ptr) {
-    dc_ctx_t *ctx = user_ptr;
-    (void)pc; (void)type;
-    // Send the full SDP blob; JS side forwards it to signaling server as-is.
-    write_msg(ctx->write_fd, MSG_SDP, sdp, (uint32_t)strlen(sdp));
-}*/
+
+static void dc_emit_msg(dc_ctx_t *ctx, msg_type_t type, const char *msg, uint32_t len) {
+    if (!ctx->dispatch) {
+			uint8_t header[5];
+			uint32_t net_len = htonl(len);
+			header[0] = (uint8_t)type;
+			memcpy(header + 1, &net_len, 4);
+			if (!write_all(ctx->write_fd, header, 5)) return;
+    	if (len > 0 && !write_all(ctx->write_fd, msg, len)) return;
+			return;
+    }
+
+    pthread_mutex_lock(&ctx->on_event_lock);
+    if (JS_IsUndefined(ctx->on_event)) {
+        pthread_mutex_unlock(&ctx->on_event_lock);
+        return;
+    }
+    dc_message_event_t *ev = malloc(sizeof(dc_message_event_t));
+    ev->jsctx = ctx->jsctx;
+    ev->on_event = JS_DupValue(ctx->jsctx, ctx->on_event);
+    pthread_mutex_unlock(&ctx->on_event_lock);
+
+		ev->type = type;
+		ev->len = len;
+		if( len > 0 ){
+			ev->data = malloc( len );
+			memcpy( ev->data, msg, len );
+		} else {
+			ev->data = NULL;
+		}
+
+    js_dispatch_to_main(dc_message_main_thread, ev);
+}
 
 static void cb_gathering_state(int pc, rtcGatheringState state, void *user_ptr) {
     dc_ctx_t *ctx = (dc_ctx_t *)user_ptr;
@@ -97,16 +167,16 @@ static void cb_gathering_state(int pc, rtcGatheringState state, void *user_ptr) 
 				ctx->sdp_sent = true;
         char sdp[4096];
         rtcGetLocalDescription(pc, sdp, sizeof(sdp));
-        write_msg(ctx->write_fd, MSG_SDP, sdp, (uint32_t)strlen(sdp));
+        dc_emit_msg(ctx, MSG_SDP, sdp, (uint32_t)strlen(sdp));
     }
 }
 
 static void cb_state_change(int pc, rtcState state, void *user_ptr) {
     dc_ctx_t *ctx = user_ptr;
     (void)pc;
-    if (state == RTC_CONNECTED)    write_msg(ctx->write_fd, MSG_CONNECTED,    NULL, 0);
-    if (state == RTC_DISCONNECTED) write_msg(ctx->write_fd, MSG_DISCONNECTED, NULL, 0);
-    if (state == RTC_FAILED)       write_msg(ctx->write_fd, MSG_DISCONNECTED, NULL, 0);
+    if (state == RTC_CONNECTED)    dc_emit_msg(ctx, MSG_CONNECTED,    NULL, 0);
+    if (state == RTC_DISCONNECTED) dc_emit_msg(ctx, MSG_DISCONNECTED, NULL, 0);
+    if (state == RTC_FAILED)       dc_emit_msg(ctx, MSG_DISCONNECTED, NULL, 0);
 }
 
 // Shared message/open/close callbacks reused for every DataChannel handle.
@@ -117,38 +187,28 @@ static void cb_dc_open(int dc, void *user_ptr) {
     dc_ctx_t *ctx = user_ptr;
     char label[256] = {0};
     rtcGetDataChannelLabel(dc, label, sizeof(label));
-    write_msg(ctx->write_fd, MSG_DC_OPEN, label, (uint32_t)strlen(label));
+    dc_emit_msg(ctx, MSG_DC_OPEN, label, (uint32_t)strlen(label));
 }
 
 static void cb_dc_close(int dc, void *user_ptr) {
     dc_ctx_t *ctx = user_ptr;
     char label[256] = {0};
     rtcGetDataChannelLabel(dc, label, sizeof(label));
-    write_msg(ctx->write_fd, MSG_DC_CLOSE, label, (uint32_t)strlen(label));
+    dc_emit_msg(ctx, MSG_DC_CLOSE, label, (uint32_t)strlen(label));
 }
 
 static void cb_dc_message(int dc, const char *msg, int size, void *user_ptr) {
     dc_ctx_t *ctx = user_ptr;
     (void)dc;
-		//printf("cb_dc_message raw size=%d\n", size);
-    // size < 0 means binary with abs(size) bytes; > 0 means text
     uint32_t len = (uint32_t)(size < 0 ? -size : size);
-		/*printf("cb_dc_message (%zu) [ ", len);
-    for (size_t i = 0; i < len; i++) {
-        printf("%u", msg[i]);
-        if (i < len - 1) {
-            printf(", ");
-        }
-    }
-    printf(" ]\n");*/
-    write_msg(ctx->write_fd, MSG_DATA, msg, len);
+    dc_emit_msg(ctx, MSG_DATA, msg, len);
 }
 
 
 static void cb_dc_buffered_low(int dc, void *user_ptr) {
     dc_ctx_t *ctx = user_ptr;
     (void)dc;
-    write_msg(ctx->write_fd, MSG_BUFFERED_LOW, NULL, 0);
+    dc_emit_msg(ctx, MSG_BUFFERED_LOW, NULL, 0);
 }
 
 // Called when the remote peer creates a DataChannel (answerer side)
@@ -177,34 +237,42 @@ static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
     rtcInitLogger(RTC_LOG_FATAL, NULL);
 
     if (argc < 1) return JS_ThrowTypeError(ctx, "options object required");
+		JSValue js_dispatch	   = JS_GetPropertyStr(ctx, argv[0], "dispatch");
+    JSValue js_stun_host  = JS_GetPropertyStr(ctx, argv[0], "stun_host");
+    JSValue js_stun_port  = JS_GetPropertyStr(ctx, argv[0], "stun_port");
+    JSValue js_initiator  = JS_GetPropertyStr(ctx, argv[0], "initiator");
+    JSValue js_label      = JS_GetPropertyStr(ctx, argv[0], "label");
 
-    JSValue stun_host_val  = JS_GetPropertyStr(ctx, argv[0], "stun_host");
-    JSValue stun_port_val  = JS_GetPropertyStr(ctx, argv[0], "stun_port");
-    JSValue initiator_val  = JS_GetPropertyStr(ctx, argv[0], "initiator");
-    JSValue label_val      = JS_GetPropertyStr(ctx, argv[0], "label");
-
-    const char *stun_host = JS_ToCString(ctx, stun_host_val);
-    uint32_t    stun_port = 19302;
-    JS_ToUint32(ctx, &stun_port, stun_port_val);
-    bool initiator = !JS_IsUndefined(initiator_val) && JS_ToBool(ctx, initiator_val);
-    //const char *label = JS_IsUndefined(label_val) ? "data" : JS_ToCString(ctx, label_val);
-		const char *label_str = JS_IsUndefined(label_val) ? NULL : JS_ToCString(ctx, label_val);
+		dc_ctx_t *dctx = js_mallocz(ctx, sizeof(dc_ctx_t));
+		dctx->dispatch = JS_ToBool( ctx, js_dispatch );
+		const char *stun_host = JS_ToCString(ctx, js_stun_host);
+    uint32_t stun_port = 19302;
+    JS_ToUint32(ctx, &stun_port, js_stun_port);
+    dctx->initiator = !JS_IsUndefined(js_initiator) && JS_ToBool(ctx, js_initiator);
+		const char *label_str = JS_IsUndefined(js_label) ? NULL : JS_ToCString(ctx, js_label);
 		const char *label = label_str ? label_str : "data";
 
-    JS_FreeValue(ctx, stun_host_val);
-    JS_FreeValue(ctx, stun_port_val);
-    JS_FreeValue(ctx, initiator_val);
-    JS_FreeValue(ctx, label_val);
+		JS_FreeValue(ctx, js_dispatch);
+    JS_FreeValue(ctx, js_stun_host);
+    JS_FreeValue(ctx, js_stun_port);
+    JS_FreeValue(ctx, js_initiator);
+    JS_FreeValue(ctx, js_label);
 
-    // Pipe: libdatachannel threads write, QuickJS event loop reads
-    int fds[2];
-    if (pipe(fds) != 0) return JS_ThrowInternalError(ctx, "pipe() failed");
+		if( !dctx->dispatch ){
+			// Pipe: libdatachannel threads write, QuickJS event loop reads
+			int fds[2];
+			if (pipe(fds) != 0) return JS_ThrowInternalError(ctx, "pipe() failed");
+			dctx->read_fd  = fds[0];
+			dctx->write_fd = fds[1];
+		} else {
+			// Dispatch: call webview dispatch callback
+			dctx->read_fd  = -1;
+			dctx->write_fd = -1;
+		}
 
-    dc_ctx_t *dctx = js_mallocz(ctx, sizeof(dc_ctx_t));
-    dctx->read_fd  = fds[0];
-    dctx->write_fd = fds[1];
     dctx->dc       = -1;
-    dctx->initiator = initiator;
+		dctx->on_event = JS_UNDEFINED;
+    pthread_mutex_init(&dctx->on_event_lock, NULL);
 
     // Build STUN URL  e.g. "stun:stun.l.google.com:19302"
     char stun_url[256];
@@ -226,7 +294,7 @@ static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
     rtcSetDataChannelCallback(dctx->pc, cb_dc_incoming);  // answerer path
 		rtcSetBufferedAmountLowThreshold(dctx->dc, 16384);  // 16KB = 4 chunks
 
-    if (initiator) {
+    if (dctx->initiator) {
         // Offerer: create a DataChannel — this triggers SDP generation
         dctx->dc = rtcCreateDataChannel(dctx->pc, label);
         rtcSetOpenCallback(dctx->dc,    cb_dc_open);
@@ -244,10 +312,12 @@ static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
     JSValue obj = JS_NewObjectClass(ctx, dc_class_id);
     JS_SetOpaque(obj, dctx);
 
-    JS_DefinePropertyValueStr(ctx, obj, "fd",
-        JS_NewInt32(ctx, dctx->read_fd), JS_PROP_ENUMERABLE);
+    if( dctx->read_fd != -1 ){
+			JS_DefinePropertyValueStr(ctx, obj, "fd",
+					JS_NewInt32(ctx, dctx->read_fd), JS_PROP_ENUMERABLE);
+		}
     JS_DefinePropertyValueStr(ctx, obj, "initiator",
-        JS_NewBool(ctx, initiator), JS_PROP_ENUMERABLE);
+        JS_NewBool(ctx, dctx->initiator), JS_PROP_ENUMERABLE);
 
     return obj;
 }
@@ -291,15 +361,6 @@ static JSValue js_dc_send(JSContext *ctx, JSValueConst this_val,
     size_t len;
     uint8_t *data = JS_GetArrayBuffer(ctx, &len, argv[0]);
     if (!data) return JS_EXCEPTION;
-
-    /*printf("js_dc_send Uint8Array(%zu) [ ", len);
-    for (size_t i = 0; i < len; i++) {
-        printf("%u", data[i]);
-        if (i < len - 1) {
-            printf(", ");
-        }
-    }
-    printf(" ]\n");*/
     // Positive size = binary in libdatachannel's C API
     rtcSendMessage(dctx->dc, (const char *)data, len);
     return JS_UNDEFINED;
@@ -324,10 +385,16 @@ static JSValue js_dc_close(JSContext *ctx, JSValueConst this_val,
     dc_ctx_t *dctx = JS_GetOpaque(this_val, dc_class_id);
     if (!dctx) return JS_EXCEPTION;
 
+		pthread_mutex_lock(&dctx->on_event_lock);
+		if (!JS_IsUndefined(dctx->on_event)) JS_FreeValue(dctx->jsctx, dctx->on_event);
+		dctx->on_event = JS_UNDEFINED;
+		pthread_mutex_unlock(&dctx->on_event_lock);
+		pthread_mutex_destroy(&dctx->on_event_lock);
+
     if (dctx->dc >= 0) rtcDeleteDataChannel(dctx->dc);
     rtcDeletePeerConnection(dctx->pc);
-    close(dctx->write_fd);
-    close(dctx->read_fd);
+    if( dctx->write_fd != -1 ) close(dctx->write_fd);
+    if( dctx->read_fd != -1 ) close(dctx->read_fd);
     js_free(ctx, dctx);
     JS_SetOpaque(this_val, NULL);
     return JS_UNDEFINED;
@@ -341,6 +408,19 @@ static JSValue js_rtc_get_buffered_amount(JSContext *ctx, JSValueConst this_val,
     return JS_NewInt32(ctx, rtcGetBufferedAmount(dctx->dc));
 }
 
+static JSValue js_dc_set_event_handler(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    dc_ctx_t *dctx = JS_GetOpaque(this_val, dc_class_id);
+		if (!dctx) return JS_EXCEPTION;
+
+    pthread_mutex_lock(&dctx->on_event_lock);
+    if (!JS_IsUndefined(dctx->on_event)) JS_FreeValue(ctx, dctx->on_event);
+    dctx->jsctx = ctx;
+    dctx->on_event = JS_DupValue(ctx, argv[0]);
+    pthread_mutex_unlock(&dctx->on_event_lock);
+
+    return JS_UNDEFINED;
+}
+
 // ---------------------------------------------------------------------------
 // Class / module wiring
 // ---------------------------------------------------------------------------
@@ -348,10 +428,17 @@ static JSValue js_rtc_get_buffered_amount(JSContext *ctx, JSValueConst this_val,
 static void dc_finalizer(JSRuntime *rt, JSValue val) {
     dc_ctx_t *dctx = JS_GetOpaque(val, dc_class_id);
     if (!dctx) return;
+
+		pthread_mutex_lock(&dctx->on_event_lock);
+		if (!JS_IsUndefined(dctx->on_event)) JS_FreeValue(dctx->jsctx, dctx->on_event);
+		dctx->on_event = JS_UNDEFINED;
+		pthread_mutex_unlock(&dctx->on_event_lock);
+		pthread_mutex_destroy(&dctx->on_event_lock);
+
     if (dctx->dc >= 0) rtcDeleteDataChannel(dctx->dc);
     rtcDeletePeerConnection(dctx->pc);
-    close(dctx->write_fd);
-    close(dctx->read_fd);
+    if( dctx->write_fd != -1 ) close(dctx->write_fd);
+    if( dctx->read_fd != -1 ) close(dctx->read_fd);
     js_free_rt(rt, dctx);
 }
 
@@ -366,7 +453,8 @@ static const JSCFunctionListEntry dc_proto_funcs[] = {
     JS_CFUNC_DEF("sendBuf",                  1, js_dc_send),
     JS_CFUNC_DEF("sendText",              1, js_dc_send_text),
     JS_CFUNC_DEF("close",                 0, js_dc_close),
-		JS_CFUNC_DEF("getBufferedAmount",			0, js_rtc_get_buffered_amount)
+		JS_CFUNC_DEF("getBufferedAmount",			0, js_rtc_get_buffered_amount),
+		JS_CFUNC_DEF("setEventHandler",     1, js_dc_set_event_handler)
 };
 
 static const JSCFunctionListEntry dc_static_funcs[] = {
