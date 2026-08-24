@@ -382,6 +382,7 @@ static JSValue js_dc_send_text(JSContext *ctx, JSValueConst this_val,
 // agent.close()
 static JSValue js_dc_close(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv) {
+		printf( "js_dc_close" );
     dc_ctx_t *dctx = JS_GetOpaque(this_val, dc_class_id);
     if (!dctx) return JS_EXCEPTION;
 
@@ -428,23 +429,36 @@ static JSValue js_dc_set_event_handler(JSContext *ctx, JSValueConst this_val, in
 static void dc_finalizer(JSRuntime *rt, JSValue val) {
     dc_ctx_t *dctx = JS_GetOpaque(val, dc_class_id);
     if (!dctx) return;
+		printf( "dc_finalizer\n" );
 
 		pthread_mutex_lock(&dctx->on_event_lock);
-		if (!JS_IsUndefined(dctx->on_event)) JS_FreeValue(dctx->jsctx, dctx->on_event);
+		if (!JS_IsUndefined(dctx->on_event)) JS_FreeValueRT(rt, dctx->on_event);
+				printf( "dc_finalizer\n" );
 		dctx->on_event = JS_UNDEFINED;
 		pthread_mutex_unlock(&dctx->on_event_lock);
 		pthread_mutex_destroy(&dctx->on_event_lock);
 
     if (dctx->dc >= 0) rtcDeleteDataChannel(dctx->dc);
+		printf( "dc_finalizer\n" );
     rtcDeletePeerConnection(dctx->pc);
+		printf( "dc_finalizer\n" );
     if( dctx->write_fd != -1 ) close(dctx->write_fd);
     if( dctx->read_fd != -1 ) close(dctx->read_fd);
+		printf( "dc_finalizer\n" );
     js_free_rt(rt, dctx);
+		printf( "dc_finalizer\n" );
+}
+
+static void on_event_gc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
+	dc_ctx_t *dctx = JS_GetOpaque(val, dc_class_id);
+	if (!dctx) return;
+	JS_MarkValue(rt, dctx->on_event, mark_func);
 }
 
 static JSClassDef dc_class = {
 	"PeerConnection",
-	.finalizer = dc_finalizer
+	.finalizer = dc_finalizer,
+	.gc_mark = on_event_gc_mark
 };
 
 static const JSCFunctionListEntry dc_proto_funcs[] = {

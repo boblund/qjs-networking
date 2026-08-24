@@ -89,9 +89,13 @@ typedef struct {
     int fds[2];
     _Atomic int server_ssl_fd;
     bool dispatch;
+		pthread_mutex_t mode_lock;   /* guards dispatch flag + the decide-and-act pipe/emit choice */
     JSContext *jsctx;
     JSValue on_data;
     pthread_mutex_t on_data_lock;
+		pthread_mutex_t close_lock;
+    pthread_cond_t close_cond;
+    bool thread_exited;
 } JSClientData;
 
 typedef struct {
@@ -174,6 +178,9 @@ static void js_client_finalizer(JSRuntime *rt, JSValue val)
     if (!JS_IsUndefined(s->on_data)) JS_FreeValueRT(rt, s->on_data);
     s->on_data = JS_UNDEFINED;
     pthread_mutex_unlock(&s->on_data_lock);
+		pthread_mutex_destroy(&s->mode_lock);
+		pthread_mutex_destroy(&s->close_lock);
+		pthread_cond_destroy(&s->close_cond);
 
 		if( s->server_ssl_fd != -1 ){
 				shutdown( s->server_ssl_fd, SHUT_RDWR );
@@ -202,6 +209,10 @@ static JSValue js_client_ctor(JSContext *ctx,
     if (!s) return JS_EXCEPTION;
 		s->on_data = JS_UNDEFINED;
     pthread_mutex_init(&s->on_data_lock, NULL);
+		pthread_mutex_init(&s->mode_lock, NULL);
+		pthread_mutex_init(&s->close_lock, NULL);
+		pthread_cond_init(&s->close_cond, NULL);
+		s->thread_exited = true;   /* no background thread exists yet */
 
     /* using new_target to get the prototype is necessary when the
        class is extended. */
@@ -232,6 +243,9 @@ static JSValue js_client_end(JSContext *ctx, JSValueConst this_val,int argc, JSV
     if (!JS_IsUndefined(s->on_data)) JS_FreeValue(ctx, s->on_data);
     s->on_data = JS_UNDEFINED;
     pthread_mutex_unlock(&s->on_data_lock);
+		pthread_mutex_destroy(&s->mode_lock);
+		pthread_mutex_destroy(&s->close_lock);
+		pthread_cond_destroy(&s->close_cond);
 
 		if( s->fds[0] == s->fds[1] ){
 			shutdown(s->fds[0], SHUT_WR); // socket
@@ -281,11 +295,15 @@ void *client_ssl_thread(void *arg) {
 							if(err == SSL_ERROR_SSL || err == SSL_ERROR_SYSCALL) ERR_print_errors_fp(stderr);
 							break;
 						}
-						if (args->dispatch) {
-								client_emit_data((JSClientData *)args->client_s, (uint8_t *)buf, n, false);
+
+						JSClientData *cd = (JSClientData *)args->client_s;
+						pthread_mutex_lock(&cd->mode_lock);
+						if (cd->dispatch) {
+								client_emit_data(cd, (uint8_t *)buf, n, false);
 						} else {
 								write( args->fds[1], buf, n );
 						}
+						pthread_mutex_unlock(&cd->mode_lock);
         }
 
         // --- main thread sent a message ---
@@ -305,12 +323,18 @@ void *client_ssl_thread(void *arg) {
 		close( ssl_fd );
 		JSClientData* ptr = (JSClientData*) args->client_s;
 		ptr->server_ssl_fd = -1;
-		if (args->dispatch) {
+		pthread_mutex_lock(&ptr->mode_lock);
+		if (ptr->dispatch) {
 				client_emit_data(ptr, NULL, 0, true);
 		} else {
 				char zero = 0;
 				write(args->fds[1], &zero, 1);
 		}
+		pthread_mutex_unlock(&ptr->mode_lock);
+		pthread_mutex_lock(&ptr->close_lock);
+		ptr->thread_exited = true;
+		pthread_cond_signal(&ptr->close_cond);
+		pthread_mutex_unlock(&ptr->close_lock);
     free(args);
     return NULL;
 }
@@ -331,6 +355,12 @@ void *plain_dispatch_thread(void *arg_) {
         }
         client_emit_data(arg->client_s, (uint8_t *)buf, n, false);
     }
+
+		JSClientData *cd = arg->client_s;
+    pthread_mutex_lock(&cd->close_lock);
+    cd->thread_exited = true;
+    pthread_cond_signal(&cd->close_cond);
+    pthread_mutex_unlock(&cd->close_lock);
     free(arg);
     return NULL;
 }
@@ -379,14 +409,6 @@ static JSValue js_client_connect(JSContext *ctx, JSValueConst this_val,
 			tls = JS_ToBool( ctx, js_tls );
 			JS_FreeValue( ctx, js_tls );
 		}
-
-		bool dispatch = false;
-		JSValue js_dispatch = JS_GetPropertyStr(ctx, argv[0], "dispatch");
-		if( JS_VALUE_GET_TAG( js_dispatch ) != JS_TAG_UNDEFINED ){
-				dispatch = JS_ToBool( ctx, js_dispatch );
-		}
-		JS_FreeValue( ctx, js_dispatch );
-		s->dispatch = dispatch;
 
 	  struct addrinfo hints={0}, *res, *rp;
     hints.ai_family   = AF_UNSPEC;
@@ -446,25 +468,63 @@ static JSValue js_client_connect(JSContext *ctx, JSValueConst this_val,
 					return JS_UNDEFINED;
 				}else{
 					s->server_ssl_fd = SSL_get_fd(ssl);
+					s->thread_exited = false;
 					create_ssl_thread( ssl, ssl_ctx, client_ssl_thread, s->fds, (void*) s, false );
 				}
-		} else if (dispatch) {
-				plain_dispatch_arg_t *pd_arg = malloc(sizeof(*pd_arg));
-				pd_arg->fd = client_fd;
-				pd_arg->client_s = s;
-				pthread_t tid;
-				pthread_attr_t attr;
-				pthread_attr_init(&attr);
-				pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-				pthread_create(&tid, &attr, plain_dispatch_thread, pd_arg);
-				pthread_attr_destroy(&attr);
 		}
-
 
 		JSValue arr = JS_NewArray(ctx);
 		JS_SetPropertyUint32(ctx, arr, 0, JS_NewInt32(ctx, s->fds[0]));
 		JS_SetPropertyUint32(ctx, arr, 1, JS_NewInt32(ctx, s->fds[1]));
     return arr;
+}
+
+static JSValue js_client_start_dispatch(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    JSClientData *s = JS_GetOpaque2(ctx, this_val, js_client_class_id);
+    if (!s) return JS_EXCEPTION;
+
+    if (s->fds[0] == s->fds[1]) {
+        /* plain TCP: no thread has ever read this fd — spawn now, safe handoff */
+        s->dispatch = true;
+				s->thread_exited = false;
+        plain_dispatch_arg_t *pd_arg = malloc(sizeof(*pd_arg));
+        pd_arg->fd = s->fds[0];
+        pd_arg->client_s = s;
+        pthread_t tid;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_create(&tid, &attr, plain_dispatch_thread, pd_arg);
+        pthread_attr_destroy(&attr);
+    } else {
+        /* TLS: client_ssl_thread is already running in pipe mode — drain
+           anything it already wrote, then flip the flag, all under the
+           lock the thread itself checks before its next decision */
+        pthread_mutex_lock(&s->mode_lock);
+
+        uint8_t drain_buf[4096];
+        struct pollfd pfd = { .fd = s->fds[0], .events = POLLIN };
+        while (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
+            int n = read(s->fds[0], drain_buf, sizeof(drain_buf));
+            if (n <= 0) break;
+            client_emit_data(s, drain_buf, n, false);
+        }
+
+        s->dispatch = true;
+        pthread_mutex_unlock(&s->mode_lock);
+    }
+    return JS_UNDEFINED;
+}
+
+static JSValue js_client_wait_for_close(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    JSClientData *s = JS_GetOpaque2(ctx, this_val, js_client_class_id);
+    if (!s) return JS_EXCEPTION;
+    pthread_mutex_lock(&s->close_lock);
+    while (!s->thread_exited) {
+        pthread_cond_wait(&s->close_cond, &s->close_lock);
+    }
+    pthread_mutex_unlock(&s->close_lock);
+    return JS_UNDEFINED;
 }
 
 static JSValue js_client_set_data_handler(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
@@ -486,7 +546,9 @@ static JSClassDef js_client_class = {
 static const JSCFunctionListEntry js_client_proto_funcs[] = {
     JS_CFUNC_DEF("connect", 2, js_client_connect),
 		JS_CFUNC_DEF("end", 0, js_client_end),
-		JS_CFUNC_DEF("setDataHandler", 1, js_client_set_data_handler)
+		JS_CFUNC_DEF("setDataHandler", 1, js_client_set_data_handler),
+		JS_CFUNC_DEF("startDispatch", 0, js_client_start_dispatch),
+    JS_CFUNC_DEF("waitForClose", 0, js_client_wait_for_close)
 };
 
 /* Server */

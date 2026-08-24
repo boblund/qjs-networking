@@ -116,7 +116,7 @@ async function start() {
 					console.log( 'peer disconnected' );
 					peer.close();
 					peer = undefined;
-					//std.exit();
+					std.exit();
 				} );
 
 				break;
@@ -149,7 +149,7 @@ async function start() {
 			console.log( 'peer disconnected' );
 			peer.close();
 			peer = undefined;
-			//std.exit();
+			std.exit();
 		} );
 	}
 }

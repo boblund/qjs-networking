@@ -33,7 +33,7 @@ libdatachan.o: libdatachan.c js_dispatch.h
 libqjsdc.a: libdatachan.o js_dispatch.o
 	ar rcs $@ $^
 
-p2pClient.c: p2pClient.mjs cognito.mjs parseUrl.mjs $(WSENDPOINT_MJS) $(ENCODEDECODE_MJS) qjsPeer.mjs priorityChannel.mjs
+p2pClient.c: p2pClient.mjs cognito.mjs parseUrl.mjs $(WSENDPOINT_MJS) wsClient.mjs $(ENCODEDECODE_MJS) qjsPeer.mjs priorityChannel.mjs
 	$(QJSC) -e -M socket.so,socket -M dc.so,dc -o p2pClient.c p2pClient.mjs
 
 p2pClient.o: p2pClient.c
