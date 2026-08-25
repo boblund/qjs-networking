@@ -197,6 +197,12 @@ static void js_client_finalizer(JSRuntime *rt, JSValue val)
 		js_free_rt(rt, s);
 }
 
+static void on_data_gc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_func) {
+    JSClientData *s = JS_GetOpaque(val, js_client_class_id);
+    if (!s) return;
+    JS_MarkValue(rt, s->on_data, mark_func);
+}
+
 static JSValue js_client_ctor(JSContext *ctx,
                              JSValueConst new_target,
                              int argc, JSValueConst *argv)
@@ -541,6 +547,7 @@ static JSValue js_client_set_data_handler(JSContext *ctx, JSValueConst this_val,
 static JSClassDef js_client_class = {
     "Client",
     .finalizer = js_client_finalizer,
+    .gc_mark = on_data_gc_mark
 };
 
 static const JSCFunctionListEntry js_client_proto_funcs[] = {
@@ -642,6 +649,7 @@ void *server_ssl_thread(void *arg) {
         if (ready < 0) { perror("poll"); break; }
         if (fds[0].revents & POLLIN) {
             int  n = SSL_read(args->ssl, buf, sizeof(buf) - 1);
+						printf( "socket.c server_ssl_thread fds[0].revents & POLLIN SSL_read n: %d\n", n );
             if (n <= 0) break;
             buf[n] = '\0';
 						write( args->fds[1], buf, strlen( buf ) );
@@ -692,7 +700,7 @@ void* accept_thread_func( void* arg ){
 					perror("accept client_fd < 0");
 					continue;
 				}
-				//printf("[accpet_thread] TLS client connected from %s\n", inet_ntoa(client_addr.sin_addr));
+				printf("[accpet_thread] TLS client connected from %s\n", inet_ntoa(client_addr.sin_addr));
 
 				SSL_CTX *ctx = create_server_ssl_ctx( accept_thread_arg->key, accept_thread_arg->cert );
 				SSL *ssl = SSL_new(ctx);
@@ -704,6 +712,7 @@ void* accept_thread_func( void* arg ){
     				close(client_fd);
 						continue;
 				}
+				printf( "socket.c SSL_accept: accepted\n" );
 
 				create_ssl_thread( ssl, ctx, server_ssl_thread, js_fds, (void*) NULL, false );
 				int bytes = write( accept_thread_arg->pipe_w_fd, js_fds, sizeof(js_fds) );
@@ -714,7 +723,7 @@ void* accept_thread_func( void* arg ){
 				}
 			} else {
 				int client_fd = accept(accept_thread_arg->listen_fd, NULL, NULL);
-				//printf("[accpet_thread] client connected from %s\n", inet_ntoa(client_addr.sin_addr));
+				printf("[accpet_thread] client connected from %s\n", inet_ntoa(client_addr.sin_addr));
 				js_fds[ 0 ] = client_fd;
 				js_fds[ 1 ] = client_fd;
 				int bytes = write( accept_thread_arg->pipe_w_fd, js_fds, sizeof(js_fds) );
@@ -813,7 +822,7 @@ static JSValue js_server_listen(JSContext *ctx, JSValueConst this_val,
     JS_SetPropertyStr(ctx, obj, "pipe_fd", JS_NewInt32(ctx, pipefds[ 0 ] ) );
     JS_SetPropertyStr(ctx, obj, "stop", JS_NewCFunction(ctx, js_stop_listen, "stop", 0));
 
-		//printf("[Server]%s on port %d, listening on fd %d\n", cert && key ? " TLS" : "", port, listen_fd);
+		printf("[Server]%s on port %d, listening on fd %d\n", cert && key ? " TLS" : "", port, listen_fd);
     return obj;
 }
 

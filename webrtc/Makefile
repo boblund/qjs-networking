@@ -12,7 +12,7 @@ LDFLAGS = \
 			-L. -lqjsdc \
 			-lm -lpthread -ldl
 
-SOCKET_C = socket.c
+SOCKET_C = ../socket.c
 ENCODEDECODE_MJS = ../EncodeDecode.mjs
 WSENDPOINT_MJS = ../wsEndpoint.mjs
 
@@ -39,7 +39,7 @@ p2pClient.c: p2pClient.mjs cognito.mjs parseUrl.mjs $(WSENDPOINT_MJS) wsClient.m
 p2pClient.o: p2pClient.c
 	$(CC) $(CFLAGS) -c p2pClient.c -o p2pClient.o
 
-p2pClient: p2pClient.o libdatachan.o socket.o js_dispatch.o
+p2pClient: p2pClient.o socket.o libqjsdc.a
 	$(CC) $(LDFLAGS) -lc++ -o p2pClient p2pClient.o socket.o # libdatachan.o js_dispatch.o replaced by libqjsdc.a
 
 .PHONY: clean
