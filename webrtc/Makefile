@@ -15,19 +15,20 @@ LDFLAGS = \
 SOCKET_C = ../socket.c
 ENCODEDECODE_MJS = ../EncodeDecode.mjs
 WSENDPOINT_MJS = ../wsEndpoint.mjs
+JS_DISPATCH = ../js_dispatch
 
 # socket
-socket.o: $(SOCKET_C) js_dispatch.h
+socket.o: $(SOCKET_C) $(JS_DISPATCH).h
 	$(CC) $(CFLAGS) -c $(SOCKET_C) -o socket.o
 
-socket.so: $(SOCKET_C) js_dispatch.h
+socket.so: $(SOCKET_C) $(JS_DISPATCH).h
 	$(CC) -fPIC -shared -DJS_SHARED_LIBRARY -o socket.so $(SOCKET_C) $(CFLAGS) $(LDFLAGS)
 
 # Datachannel version
-js_dispatch.o: js_dispatch.c js_dispatch.h
-	$(CC) $(CFLAGS) -c js_dispatch.c -o js_dispatch.o
+js_dispatch.o: $(JS_DISPATCH).c $(JS_DISPATCH).h
+	$(CC) $(CFLAGS) -c $(JS_DISPATCH).c -o js_dispatch.o
 
-libdatachan.o: libdatachan.c js_dispatch.h
+libdatachan.o: libdatachan.c $(JS_DISPATCH).h
 	$(CC) $(CFLAGS) -c libdatachan.c -o libdatachan.o
 
 libqjsdc.a: libdatachan.o js_dispatch.o
