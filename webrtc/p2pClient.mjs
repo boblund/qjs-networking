@@ -54,6 +54,8 @@ try {
 	std.exit( 1 );
 }
 
+config.url = std.getenv( 'LOCAL_BRUME' ) ? `ws://${ std.getenv( 'LOCAL_BRUME' ) }` : config.url;
+
 const receiver = scriptArgs.length === 2 ? undefined : scriptArgs[2];
 
 // -----------------------------------------------------------------------------

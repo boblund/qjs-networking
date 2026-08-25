@@ -39,7 +39,7 @@ function newWsClient( url, token = undefined ){
 
 	const socket = new Client();
 	const fds = socket.connect( {
-		port: protocol == 'wss' ? 443 : 80,
+		port: port ? port : ( protocol == 'wss' ? 443 : 80 ),
 		host: addr,
 		tls: protocol == 'wss' ? true : false
 	} );
