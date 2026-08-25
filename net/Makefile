@@ -42,4 +42,4 @@ server: server.o socket.o js_dispatch.o
 .PHONY: clean
 
 clean:
-	rm -rf *.o client.c server.c socket.so.dSYM
+	rm -rf *.o client.c server.c socket.so.dSYM client server
