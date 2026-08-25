@@ -23,8 +23,8 @@ function closeFrame( code, reason, masked ){
 	return wsFrame( 0x8, payload, masked );
 }
 
-function closeTcp( fds, dispatch ){
-	if( !dispatch ) os.setReadHandler( fds[ 0 ], null );
+function closeTcp( fds, dispatch, socket ){
+	dispatch ? socket.end() : os.setReadHandler( fds[ 0 ], null );
 	os.close( fds[ 0 ] ); os.close( fds[ 1 ] );
 	fds[ 0 ] = fds[ 1 ] = -1;
 }
@@ -141,7 +141,7 @@ class WsEndpoint {
 	#handleClose( n ){
 		console.log( `wsEndpoint closing: ${ this.#closing }, n: ${ n }` );
 		if( this.#closing ){
-			closeTcp( this.#fds, this.#dispatch );
+			closeTcp( this.#fds, this.#dispatch, this.#socket );
 			this.#closing = false;
 			if( this.#role == 'client' ){
 				os.clearTimeout( this.#closeTimeout );
@@ -150,7 +150,7 @@ class WsEndpoint {
 				this.#listenerFuncs.close( { code: 1006, reason: 'Abnormal closure' } );
 			}
 		} else {
-			closeTcp( this.#fds, this.#dispatch );
+			closeTcp( this.#fds, this.#dispatch, this.#socket );
 			this.#listenerFuncs.close( n == 1
 				? { code: 1001, reason: 'TCP closed' } //qjs socket server behavior
 				: { code: 1006, reason: 'Abnormal closure' }
@@ -220,7 +220,7 @@ class WsEndpoint {
 						if( this.#closing ){
 							console.log( `${ this.#role } received ws close while closing` );
 							if( this.#role == 'server' ){
-								closeTcp( this.#fds, this.#dispatch );
+								closeTcp( this.#fds, this.#dispatch, this.#socket );
 								this.#closing = false;
 							}
 						} else {
@@ -228,20 +228,20 @@ class WsEndpoint {
 							let code = new DataView( payload.buffer ).getUint16( 0 );
 							let reason = dec.decode( payload.slice( 2 ) );
 							this.#listenerFuncs.close( { code, reason } );
-							const frame = closeFrame( code, reason );
+							const frame = closeFrame( code, reason, this.#role == 'client' ? 'mask' : undefined );
 							os.write( this.#fds[1], frame.buffer, 0, frame.byteLength );
 
 							if( this.#role == 'client' ){
 								this.#closing = true;
 								this.#closeTimeout = os.setTimeout( () => {
-									closeTcp( this.#fds, this.#dispatch );
+									closeTcp( this.#fds, this.#dispatch, this.#socket );
 									this.#listenerFuncs.close( { code: 1006, reason: 'Abnormal closure' } );
 									this.#closing = false;
 									this.#closeTimeout = undefined;
 								}, 5000 );
 							}else{
 								console.log( `${ this.#role } closeTcp` );
-								closeTcp( this.#fds, this.#dispatch );
+								closeTcp( this.#fds, this.#dispatch, this.#socket );
 							}
 						}
 						break;
@@ -305,11 +305,11 @@ class WsEndpoint {
 	}
 
 	#protocolFail( code, reason ){
-		const frame = closeFrame( code, reason );
+		const frame = closeFrame( code, reason, this.#role == 'client' ? 'mask' : undefined );
 		os.write( this.#fds[ 1 ], frame.buffer, 0, frame.length );
 		this.#closing = true;
 		this.#closeTimeout = os.setTimeout( () => {
-			closeTcp( this.#fds, this.#dispatch );
+			closeTcp( this.#fds, this.#dispatch, this.#socket );
 			this.#closing = false;
 			this.#closeTimeout = undefined;
 		}, 5000 );
@@ -323,18 +323,20 @@ class WsEndpoint {
 
 	send( message ) {
 		const payload = enc.encode( message );
-		const frame = wsFrame( typeof message == 'string' ? 0x1 : 0x2, payload );
+		const frame = wsFrame( typeof message == 'string' ? 0x1 : 0x2, payload, this.#role == 'client' ? 'mask' : undefined );
 		os.write( this.#fds[1], frame.buffer, 0, frame.length );
 	}
 
 	close( code = 1000, reason = 'application close' ){
 		this.#closing = true;
-		const frame = closeFrame( code, reason );
+		const frame = closeFrame( code, reason, this.#role == 'client' ? 'mask' : undefined );
 		os.write( this.#fds[ 1 ], frame.buffer, 0, frame.length );
 		this.#closeTimeout = os.setTimeout( () => {
-			closeTcp( this.#fds, this.#dispatch );
+			closeTcp( this.#fds, this.#dispatch, this.#socket );
 			this.#closing = false;
 			this.#closeTimeout = undefined;
 		}, 5000 );
 	};
+
+	waitForClose(){ return this.#socket.waitForClose(); }
 }
