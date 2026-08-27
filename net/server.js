@@ -10,11 +10,11 @@ if( scriptArgs.length > 3 ){
 	std.exit( 1 );
 }
 const [ port, tls = false ] = scriptArgs.slice( 1 );
-console.log( `tls: ${ tls  }` );
 const server = new Server();
 const { stop, pipe_fd } = tls
 	? server.listen( { port, key: '../key.pem', cert: '../cert.pem' } )
 	: server.listen( { port } );
+if( !pipe_fd ) std.exit( 1 );
 os.signal( os.SIGUSR1, () => {
 	//stop();
 	console.log( '\nserver stopped' );
