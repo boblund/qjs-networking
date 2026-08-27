@@ -1,18 +1,18 @@
 QJSC = /usr/local/bin/qjsc
 CC = gcc
-CFLAGS = -O0 -g -Wall -fPIC -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include -I.
+CFLAGS = -O0 -g -Wall -fPIC -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include -I../include
 LDFLAGS = -L/usr/local/lib/quickjs -lquickjs -L/opt/homebrew/opt/openssl/lib -lssl -lcrypto -lm -lpthread -ldl
 
 all: client server
 
-js_dispatch.o: js_dispatch.c js_dispatch.h
+js_dispatch.o: js_dispatch.c
 	$(CC) $(CFLAGS) -c js_dispatch.c -o js_dispatch.o
 
 # socket
-socket.o: socket.c js_dispatch.h
+socket.o: socket.c
 	$(CC) $(CFLAGS) -c socket.c -o socket.o
 
-socket.so: socket.c js_dispatch.h
+socket.so: socket.c
 	$(CC) -fPIC -shared -DJS_SHARED_LIBRARY -o socket.so socket.c $(CFLAGS) $(LDFLAGS)
 
 # client
