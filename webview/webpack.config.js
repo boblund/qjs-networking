@@ -10,13 +10,13 @@ module.exports = ( env = {} ) => {
 		entry: './index.mjs',
 
 		//new
-		/*
+
 		resolve: {
 			alias: {
 				'amazon-cognito-identity-js': path.resolve( __dirname, 'cognito-shim.mjs' )
 			}
 		},
-		*/
+
 
 		output: {
 			filename: 'bundle.js',
