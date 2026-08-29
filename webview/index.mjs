@@ -1,7 +1,7 @@
 // index.mjs — webpack entry point, bundled to bundle.js
 //debugger;
 import './index.css';
-import { BrumeCallCe, BrumeLoginCe, DialogCe, SpaNavCe, brumeStyleSheet } from './brume-ce/index.mjs';
+import { BrumeCallCe, BrumeLoginCe, DialogCe, SpaNavCe, brumeStyleSheet } from 'brume-ce';
 
 customElements.define( 'brume-login', BrumeLoginCe );
 customElements.define( 'brume-call', BrumeCallCe );
