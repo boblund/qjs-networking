@@ -35,4 +35,4 @@ server: server.o
 .PHONY: clean
 
 clean:
-	rm -rf *.o client.c client server
+	rm -rf *.[co] client server
