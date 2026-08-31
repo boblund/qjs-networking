@@ -1,38 +1,23 @@
 QJSC = /usr/local/bin/qjsc
 CC = clang
-CXX = clang++
 
-CFLAGS = -O2 -g -Wall -fPIC  -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include  -I../include -I.
-CXXFLAGS = -std=c++11 -DWEBVIEW_COCOA -I.
+CFLAGS = \
+	-O2 -g -Wall -fPIC \
+	-I/usr/local/include/quickjs \
+	-I/opt/homebrew/opt/openssl/include \
+	-I.
+
 LDFLAGS = \
 	-L/usr/local/lib/quickjs -lquickjs \
 	-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
 	-L../lib/libdatachannel -ldatachannel -lusrsctp -ljuice \
-	-L../lib -lqjsdc \
+	-L../lib -lqjsdc -lqjswebview -lqjssocket\
 	-framework WebKit -framework Cocoa
 
-TARGETS = webviewApp
-all: $(TARGETS)
+all: webviewApp
 
-impl.o: impl.cc webview.h
-	$(CXX) -c impl.cc $(CXXFLAGS) -o impl.o
-
-js_dispatch.o: js_dispatch.c
-	$(CC) $(CFLAGS) -c js_dispatch.c -o js_dispatch.o
-
-# socket
-socket.o: socket.c
-	$(CC) $(CFLAGS) -c socket.c -o socket.o
-
-# webview
 webview.o: webview.c webview.h
 	$(CC) $(CFLAGS) -c webview.c -o webview.o
-
-#libqjswebview.a: webview.o js_dispatch.o impl.o
-#	ar rcs $@ $^
-
-webview.so: webview.o impl.o
-	$(CXX) -shared -o webview.so webview.o impl.o -framework WebKit -framework Cocoa
 
 webviewApp.c: webviewApp.mjs qjsPeer.mjs wsClient.mjs cognito.mjs
 	$(QJSC) -e -M webview.so,webview -M socket.so,socket -M dc.so,dc -o webviewApp.c webviewApp.mjs
@@ -40,8 +25,8 @@ webviewApp.c: webviewApp.mjs qjsPeer.mjs wsClient.mjs cognito.mjs
 webviewApp.o: webviewApp.c
 	$(CC) $(CFLAGS) -c webviewApp.c -o webviewApp.o
 
-webviewApp: webviewApp.o socket.o webview.o impl.o js_dispatch.o
-	$(CC) -lc++ webviewApp.o socket.o webview.o impl.o js_dispatch.o $(LDFLAGS) -o webviewApp
+webviewApp: webviewApp.o
+	$(CC) -lc++ webviewApp.o $(LDFLAGS) -o webviewApp
 
 .PHONY: clean
 

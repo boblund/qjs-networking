@@ -95,7 +95,6 @@ async function start() {
 	} );
 
 	wsc.on( 'message', ( message ) => {
-		console.log( `wsc.onMessage: ${ message }` );
 		const msg = JSON.parse( message );
 		const msgType = msg.type ? msg.type : msg?.data?.type;
 		switch ( msgType ) {

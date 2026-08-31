@@ -1,7 +1,7 @@
 import * as os from 'os';
 import { b64_sha1 } from 'sha1.mjs';
-import { WsEndpoint } from '../wsEndpoint.mjs';
-import { TextEncoder } from '../EncodeDecode.mjs';
+import { WsEndpoint } from 'wsEndpoint.mjs';
+import { TextEncoder } from 'EncodeDecode.mjs';
 
 const enc = new TextEncoder;
 const magicGUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';

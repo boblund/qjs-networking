@@ -13,7 +13,7 @@ module.exports = ( env = {} ) => {
 
 		resolve: {
 			alias: {
-				'amazon-cognito-identity-js': path.resolve( __dirname, 'cognito-shim.mjs' )
+				'amazon-cognito-identity-js': path.resolve( __dirname, 'amazon-cognito-identity-shim.mjs' )
 			}
 		},
 

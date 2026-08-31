@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as std from 'std';
 import { Server } from 'socket.so';
-import { TextEncoder } from '../EncodeDecode.mjs';
+import { TextEncoder } from './EncodeDecode.mjs';
 
 const enc = new TextEncoder;
 
