@@ -1,5 +1,23 @@
-// url = [protocol://]v4|v6|host[:port][/path]
-// returns { protocol, addr, port, path }
+/**
+ * parseUrl module
+ * @module parseUrl
+ * @see module:parseUrl
+ */
+
+/**
+ * @typedef {Object} ParsedUrl
+ * @property {string} protocol the url scheme, e.g. "https"
+ * @property {string} addr the hostname or IP address
+ * @property {number} port the port number
+ * @property {string} path the path portion of the url
+ */
+
+/**
+ * Parse a url into its components
+ *
+ * @param {string} url url to be parsed
+ * @return {ParsedUrl} the parsed url components
+ */
 
 export function parseUrl( url ){
 	let addr, path, port, protocol, ptr, urlEnd = url.length - 1 ;

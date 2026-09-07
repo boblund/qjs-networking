@@ -1,4 +1,8 @@
-export { newWsClient };
+/**
+ * wsClient module.
+ * @module wsClient
+ * @see module:wsClient
+ */
 
 import * as os from 'os';
 import { Client } from 'socket.so';
@@ -20,7 +24,14 @@ function findHeaderEnd( buf ){
 	return -1;
 }
 
-function newWsClient( url, token = undefined ){
+/**
+ * Creates a new websocket client
+ * @param {string} url websocket server
+ * @param {string} [token] authentication JWT
+ * @returns new {@link module:wsEndpoint.WsEndpoint WsEndpoint}
+ */
+
+export function newWsClient( url, token = undefined ){
 	const { protocol, addr, port, path } = parseUrl( url );
 	const host = addr;
 	const wsPath = path ?? '/';

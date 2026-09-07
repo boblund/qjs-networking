@@ -1,4 +1,8 @@
-export { WsEndpoint };
+/**
+ * wsEndpoint module.
+ * @module wsEndpoint
+ * @see module:wsEndpoint
+ */
 
 import * as os from 'os';
 import { TextEncoder, TextDecoder } from './EncodeDecode.mjs';
@@ -82,7 +86,11 @@ function wsFrame( opcode, payload, masked ) {
 	return buf;
 }
 
-class WsEndpoint {
+/**
+ * Class implementing websocket client/server frame handling.
+ */
+
+export class WsEndpoint {
 	#listenerFuncs = {
 		close(){},
 		message(){},
@@ -102,6 +110,16 @@ class WsEndpoint {
 	#chunks = [];
 	#totalLength = 0;
 	#buf = new Uint8Array( 0 );
+
+	/**
+	 * Create a websocket endpoint
+	 * @param {Array} fds [read file descriptor, write fd]
+	 * @param {Object} socket TCP socket instance
+	 * @param {'client'|'server'} role type or endpoint
+	 * @param {Object} [opts={}] constructor options
+	 * @param {boolean} opts.dispatch use dispatch to get
+	 *   data from socket (true/false)
+	 */
 
 	constructor( fds, socket, role, opts = {} ){
 		this.#fds = fds;
@@ -128,7 +146,12 @@ class WsEndpoint {
 		} );
 	};
 
-	/* ---- dispatch-mode entry point: bytes (Uint8Array) or null (closed) ---- */
+	/**
+	 * Called in dispatch-mode to feed websocket raw frames for parsing
+	 * @param {Uint8Array | null} chunk raw frame or null on end of data
+	 * @returns {undefned}
+	 */
+
 	feed( chunk ){
 		if( chunk === null ){
 			this.#handleClose( undefined );
@@ -315,17 +338,43 @@ class WsEndpoint {
 		}, 5000 );
 	}
 
+	/**
+	 * Register event handler
+	 * @param {string} event event name
+	 * @param {function} func event handler
+	 * @returns {undefned}
+	 */
+
 	on( event, func ){ if( this.#listenerNames.includes( event ) ) this.#listenerFuncs[ event] = func; };
+
+	/**
+	 * Send ping control frame
+	 * @returns {undefned}
+	 */
+
 	ping() {
 		const frame = wsFrame( 0x9, new Uint8Array( 0 ), 'mask' );
 		os.write( this.#fds[1], frame.buffer, 0, frame.length );
 	}
+
+	/**
+	 * Write a message to the websocket
+	 * @param {string|Uint8Array} message data to write
+	 * @returns {undefned}
+	 */
 
 	send( message ) {
 		const payload = enc.encode( message );
 		const frame = wsFrame( typeof message == 'string' ? 0x1 : 0x2, payload, this.#role == 'client' ? 'mask' : undefined );
 		os.write( this.#fds[1], frame.buffer, 0, frame.length );
 	}
+
+	/**
+	 * Close the websocket
+	 * @param {int} [code=1000] close code
+	 * @param {string} [reason='application close'] close reason - requires code to be specified
+	 * @returns {undefned}
+	 */
 
 	close( code = 1000, reason = 'application close' ){
 		this.#closing = true;
@@ -337,6 +386,11 @@ class WsEndpoint {
 			this.#closeTimeout = undefined;
 		}, 5000 );
 	};
+
+	/**
+	 * Synchronous call to wait for websocket to close
+	 * @returns {undefned}
+	 */
 
 	waitForClose(){ return this.#socket.waitForClose(); }
 }

@@ -24,8 +24,34 @@ w.setSize( 900, 700 );
 w.bind( 'webview', () => true );
 w.bind( 'localBrume', () => std.getenv( 'LOCAL_BRUME' ) );
 
+/**
+ * @typedef {'connect'|'data'|'disconnect'|'offer'|'peerError'|'wsClose'} BrumeEventType
+ */
+
+/**
+ * @param {BrumeEventType} type
+ * @param {object} detail
+ */
 
 /* ---- native -> browser: unsolicited events ---- */
+/**
+ * Pushes an unsolicited event from native code into the webview's page
+ * content. Native code and the loaded page run in separate JS engines
+ * (QuickJS here; WebKit in the page) — this is the one-way channel native
+ * uses to notify the page of things it didn't ask for (a datachannel
+ * message arriving, a peer connecting, an incoming call offer, etc.).
+ *
+ * Implementation note: builds a JS source string and hands it to
+ * `webview_eval()` (via `w.eval`) to execute inside the page's real DOM
+ * context.
+ *
+ * The page must have a `window.addEventListener('brume', ...)` listener
+ * registered before this fires, or the event is silently dropped — see
+ * the listener in index.mjs for the receiving side of this contract.
+ *
+ * @param {BrumeEventType} type
+ * @param {object} detail
+ */
 function pushToUI( type, detail ) {
 	w.eval( `window.dispatchEvent(new CustomEvent('brume', { detail: ${ JSON.stringify( { type, detail } ) } }))` );
 }

@@ -1,9 +1,23 @@
+/**
+ * httpRequest module
+ * @module httpRequest
+ * @see module:httpRequest
+ */
+
 import * as os from 'os';
 import { initHttpResponse } from './parseHttpResponse.mjs';
 import { TextEncoder, TextDecoder } from './EncodeDecode.mjs';
 
 const enc = new TextEncoder;
 const dec = new TextDecoder;
+
+/**
+ * Promise that sends an http request and returns the response
+ *
+ * @param { Array } fds file descriptor array to send the request and read the response
+ * @param { string } req http request
+ * @return Promise that resolves to the request response or rejected with the error
+ */
 
 export function httpRequest( fds, req ){
 	return new Promise( ( res, rej ) => {
@@ -44,7 +58,15 @@ export function httpRequest( fds, req ){
 	} );
 }
 
-// httpRequest.mjs
+/**
+ * Send a sync http request and return the response
+ *
+ * @param fds file descriptor array to send the request and read the response
+ * @param req http request
+ * @return request response
+ * @throws request error
+ */
+
 export function httpRequestSync( fds, req ) {
 	let aBuf = enc.encode( req ).buffer;
 	os.write( fds[1], aBuf, 0, aBuf.byteLength );

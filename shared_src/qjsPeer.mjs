@@ -1,4 +1,9 @@
-export { QjsPeer };
+/**
+ * qjsPeer module.
+ * @module qjsPeer
+ * @see module:qjsPeer
+ */
+
 import * as os from 'os';
 import { TextEncoder, TextDecoder } from './EncodeDecode.mjs';
 import { PeerConnection } from './dc.so';
@@ -16,7 +21,11 @@ function encodeMsg( { type, data = {} } ){
 	return a;
 }
 
-class QjsPeer{
+/**
+ * Class representing a webrtc Peer.
+ */
+
+export class QjsPeer{
 	priorityChannel;
 	typeToQueue = () => { throw( 'QjsPeer.typeToQueue not set' ); };
 	initiator;
@@ -31,6 +40,14 @@ class QjsPeer{
 	};
 
 	listenerNames = Object.keys( this.listeners );
+
+	/**
+	 * Create a Peer
+	 * @param {Object} args
+	 * @param {boolean} [args.initiator=false] if true then initiating the connection
+	 * @param {string} [args.label='not_set'] label for data channel
+	 * @param {boolean} [args.dispatch=false] if true use dispatch
+	 */
 
 	constructor( { initiator, label, dispatch } = { initiator: false, label: 'not_set', dispatch: false } ){
 		this.agent = new PeerConnection( {
@@ -49,9 +66,19 @@ class QjsPeer{
 		dcMsgHandler( this );
 	}
 
+	/**
+	 * Close datachannel
+	 * @returns {undefined}
+	 */
 	close(){
 		this.agent.close();
 	}
+
+	/**
+	 * Creat queues
+	 * @param {Array} queuesOrder string names of queues in descending priority order
+	 * @returns {undefined}
+	 */
 
 	createQueues( queuesOrder ){
 		this.priorityChannel = new PriorityChannel( {
@@ -61,14 +88,33 @@ class QjsPeer{
 		} );
 	}
 
+	/**
+	 * Registers event handler
+	 * @param {string} event name
+	 * @param {function} handler function
+	 * @returns {undefined}
+	 */
 	on( event, handler ){
 		if( this.listenerNames.includes( event ) ) this.listeners[ event ] = handler;
 	}
+
+	/**
+	 * Send message
+	 * @param {string} type message type
+	 * @param {string | Uint8Array } data to send
+	 * @returns {undefined}
+	 */
 
 	send( { type, data } ){
 		this.priorityChannel.send( this.typeToQueue( type ), { type, data } );
 		this.priorityChannel.pump;
 	};
+
+	/**
+	 * Signal local peer with msg
+	 * @param {string} msg sdp
+	 * @returns {undefined}
+	 */
 
 	signal( msg ){
 		switch( msg.type ){
@@ -84,7 +130,16 @@ class QjsPeer{
 		}
 	};
 
+	/**
+	 * name of peer
+	 * @type {string}
+	 */
 	peerName = '';
+
+	/**
+	 * local peer name
+	 * @type {string}
+	 */
 	myName = '';
 }
 

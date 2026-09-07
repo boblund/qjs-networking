@@ -1,12 +1,29 @@
-export { initHttpResponse };
+/**
+ * parseHttpResponse module
+ * @module parseHttpResponse
+ * @see parseHttpResponse
+ */
 
-function initHttpResponse( doneFunc, noLengthCb = undefined ) {
+/**
+ * Closure to parse an http response a chunk at a time
+ *
+ * @param {Function} doneFunc called with completed http response text
+ * @param {Function} noLengthCb called if no Content-Length and not chunked and http protocol < 1.1
+ * @return chunkProcessor function
+ */
+
+export function initHttpResponse( doneFunc, noLengthCb = undefined ) {
 	let responseState = 'header'; // 'chunked', 'contentLength', 'done'
 	let parsedHeaders = null;
 	let bodyExpected  = -1;
 	let done = doneFunc;
 
-	return function( _readBuf ){
+	/**
+	* @function chunkProcessor
+	* @param {Uint8Array} _readBuf response chunk
+	* @return {undefined}
+	*/
+	const processChunk = function( _readBuf ){
 		if( responseState != 'contentLength' && _readBuf.length == 0 ) return;
 		let readBuf = _readBuf.slice( 0 );
 
@@ -43,6 +60,7 @@ function initHttpResponse( doneFunc, noLengthCb = undefined ) {
 			}
 		}
 	};
+	return processChunk;
 }
 
 function parseHeader( readBuf, noLengthCb ){

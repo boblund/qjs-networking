@@ -44,7 +44,18 @@ function pcCleanup() {
 // -----------------------------------------------------------------------------
 // native -> browser events
 // -----------------------------------------------------------------------------
-
+/**
+ * Receives unsolicited events pushed from native code via `pushToUI()`
+ * in webviewApp.mjs (see that function's doc for the native-side half
+ * of this contract). Fires as a real DOM CustomEvent because the eval'd
+ * string executes inside this page's own JS engine, not QuickJS.
+ *
+ * @listens brume
+ * @param {CustomEvent} e
+ * @param {object} e.detail
+ * @param {string} e.detail.type - See pushToUI's `type` values.
+ * @param {object} e.detail.detail - See pushToUI's `detail` param.
+ */
 window.addEventListener( 'brume', ( e ) => {
 	const { type, detail } = e.detail;
 	switch ( type ) {
