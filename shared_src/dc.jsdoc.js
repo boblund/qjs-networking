@@ -1,21 +1,21 @@
 /**
- * @module dc
+ * @module datachannel
  * @description
  * JSDoc-only declaration for QuickJS datachan_c_module/libdatachan.c
- * Static library created in lib/libqjsdc.a
+ * Static library created in lib/libqjsdatachannel.a
  */
 
 /**
- * JS Class exported by a QuickJS C module representing a webrtc datachannel based on libdatachannel.
+ * JS Class exported by a QuickJS C module representing a webrtc datachannel based on {@link https://github.com/paullouisageneau/libdatachannel}.
  * JS writes text/binary data using sendText/sendBuf methods.
  * Data received on the datachannel is sent back to JS using <b>fd mode</b> or <b>dispatch mode</b>.
  * See 'qjs-networking/README.md' 'C module callback modes' for more details.
- * The dispatch argument in the {@link module:dc.PeerConnection|PeerConnection constructor} specifies which mode
+ * The dispatch argument in the {@link module:datachannel.DataChannel|DataChannel constructor} specifies which mode
  * to use.
  * @class
  */
 
-export class PeerConnection{
+export class DataChannel{
 	/**
 	 * Create a new datachannel
 	 * @param {Object} options
@@ -77,7 +77,7 @@ export class PeerConnection{
 }
 
 /**
- *  PeerConnection static message type formats
+ *  DataChannel static message type formats
  *
  * <table class="params">
  *   <thead>
@@ -105,5 +105,5 @@ export class PeerConnection{
  * </table>
  *
  * @typedef {Object} MessageType
- * @memberof module:dc.PeerConnection
+ * @memberof module:datachannel.DataChannel
  */

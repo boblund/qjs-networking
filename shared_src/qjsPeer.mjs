@@ -6,7 +6,7 @@
 
 import * as os from 'os';
 import { TextEncoder, TextDecoder } from './EncodeDecode.mjs';
-import { PeerConnection } from './dc.so';
+import { DataChannel } from './dc.so';
 import { PriorityChannel } from './priorityChannel.mjs';
 
 const enc = new TextEncoder;
@@ -50,7 +50,7 @@ export class QjsPeer{
 	 */
 
 	constructor( { initiator, label, dispatch } = { initiator: false, label: 'not_set', dispatch: false } ){
-		this.agent = new PeerConnection( {
+		this.agent = new DataChannel( {
 			stun_host: "stun.l.google.com",
 			stun_port: 19302,
 			initiator,
@@ -155,28 +155,28 @@ function dcMsgHandler( qjspeer ) {
 
 	handleEvent = ( type, bytes ) => {
 		switch ( type ) {
-			case PeerConnection.MSG_SDP:
+			case DataChannel.MSG_SDP:
 				qjspeer.listeners.sdp( dec.decode( bytes ) );
 				break;
 
-			case PeerConnection.MSG_DC_OPEN:
+			case DataChannel.MSG_DC_OPEN:
 				qjspeer.agent.dcOpen();
 				break;
 
-			case PeerConnection.MSG_DC_CLOSE:
+			case DataChannel.MSG_DC_CLOSE:
 				console.log( `datachannel closed: ${ dec.decode( bytes ) }` );
 				break;
 
-			case PeerConnection.MSG_CONNECTED:
+			case DataChannel.MSG_CONNECTED:
 				console.log( 'ICE connected' );
 				break;
 
-			case PeerConnection.MSG_DISCONNECTED:
+			case DataChannel.MSG_DISCONNECTED:
 				if( 'fd' in qjspeer.agent ) os.setReadHandler( qjspeer.agent.fd, null );
 				qjspeer.listeners.disconnect();
 				break;
 
-			case PeerConnection.MSG_DATA:
+			case DataChannel.MSG_DATA:
 				const [ text, typeLength ] = [ bytes[0] >> 7, bytes[0] & 0x7F ];
 				const msgType = dec.decode( bytes.slice( 1, 1 + typeLength ) );
 				const data = text == 1
@@ -185,7 +185,7 @@ function dcMsgHandler( qjspeer ) {
 				qjspeer.listeners.data( { type: msgType, data } );
 				break;
 
-			case PeerConnection.MSG_BUFFERED_LOW:
+			case DataChannel.MSG_BUFFERED_LOW:
 				qjspeer.pump();
 				break;
 
@@ -228,10 +228,10 @@ function readMsg( fd ) {
 	const payloadLength = new DataView( headerBuf.buffer ).getInt32( 1, false );
 
 	switch ( type ) {
-		case PeerConnection.MSG_SDP:
-		case PeerConnection.MSG_DATA:
-		case PeerConnection.MSG_DC_OPEN:
-		case PeerConnection.MSG_DC_CLOSE: {
+		case DataChannel.MSG_SDP:
+		case DataChannel.MSG_DATA:
+		case DataChannel.MSG_DC_OPEN:
+		case DataChannel.MSG_DC_CLOSE: {
 			const payloadBuf = new Uint8Array( payloadLength );
 			if ( payloadLength > 0 ) readExact( fd, payloadBuf.buffer, payloadLength );
 			return { type, data: payloadBuf, length: payloadLength };

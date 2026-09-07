@@ -7,7 +7,7 @@
 //       -ldatachannel -lquickjs
 //
 // JS usage:
-//   import { PeerConnection } from './dc.so';
+//   import { DataChannel } from './dc.so';
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -62,7 +62,7 @@ static bool write_all(int fd, const void *buf, size_t len) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-PeerConnection context
+// Per-DataChannel context
 // ---------------------------------------------------------------------------
 
 typedef struct {
@@ -229,7 +229,7 @@ static void cb_dc_incoming(int pc, int dc, void *user_ptr) {
 static JSClassID dc_class_id;
 
 // ---------------------------------------------------------------------------
-// Constructor:  new PeerConnection({ stun_host, stun_port, initiator, label? })
+// Constructor:  new DataChannel({ stun_host, stun_port, initiator, label? })
 // ---------------------------------------------------------------------------
 
 static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
@@ -456,7 +456,7 @@ static void on_event_gc_mark(JSRuntime *rt, JSValueConst val, JS_MarkFunc *mark_
 }
 
 static JSClassDef dc_class = {
-	"PeerConnection",
+	"DataChannel",
 	.finalizer = dc_finalizer,
 	.gc_mark = on_event_gc_mark
 };
@@ -489,19 +489,19 @@ static int js_dc_module_init(JSContext *ctx, JSModuleDef *m) {
     JSValue proto = JS_NewObject(ctx);
     JS_SetPropertyFunctionList(ctx, proto, dc_proto_funcs, countof(dc_proto_funcs));
 
-    JSValue ctor = JS_NewCFunction2(ctx, js_dc_ctor, "PeerConnection", 1,
+    JSValue ctor = JS_NewCFunction2(ctx, js_dc_ctor, "DataChannel", 1,
                                     JS_CFUNC_constructor, 0);
     JS_SetPropertyFunctionList(ctx, ctor, dc_static_funcs, countof(dc_static_funcs));
     JS_SetConstructor(ctx, ctor, proto);
     JS_SetClassProto(ctx, dc_class_id, proto);
 
-    JS_SetModuleExport(ctx, m, "PeerConnection", ctor);
+    JS_SetModuleExport(ctx, m, "DataChannel", ctor);
     return 0;
 }
 
 JSModuleDef *JS_INIT_MODULE(JSContext *ctx, const char *module_name) {
     JSModuleDef *m = JS_NewCModule(ctx, module_name, js_dc_module_init);
     if (!m) return NULL;
-    JS_AddModuleExport(ctx, m, "PeerConnection");
+    JS_AddModuleExport(ctx, m, "DataChannel");
     return m;
 }
