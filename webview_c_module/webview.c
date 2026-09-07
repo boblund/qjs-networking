@@ -303,6 +303,17 @@ static JSValue js_webview_unbind(JSContext *ctx, JSValueConst this_val, int argc
     return JS_UNDEFINED;
 }
 
+static JSValue js_webview_init_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    webview_data_t *data = get_data(ctx, this_val);
+    if (!data) return JS_EXCEPTION;
+    webview_t w = data->w;
+    if (!w) return JS_EXCEPTION;
+    const char *js = JS_ToCString(ctx, argv[0]);
+    webview_init(w, js);
+    JS_FreeCString(ctx, js);
+    return JS_UNDEFINED;
+}
+
 /* ---- module registration ---- */
 
 static const JSCFunctionListEntry proto_funcs[] = {
@@ -316,6 +327,7 @@ static const JSCFunctionListEntry proto_funcs[] = {
     JS_CFUNC_DEF("eval", 1, js_webview_eval),
     JS_CFUNC_DEF("bind", 2, js_webview_bind),
     JS_CFUNC_DEF("unbind", 1, js_webview_unbind),
+		JS_CFUNC_DEF("init", 1, js_webview_init_js)
 };
 
 static int js_webview_init(JSContext *ctx, JSModuleDef *m) {
