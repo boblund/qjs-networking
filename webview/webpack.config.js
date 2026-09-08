@@ -1,5 +1,6 @@
 // webpack.config.js
 const path = require( 'path' );
+const HtmlWebpackPlugin = require( 'html-webpack-plugin' );
 
 module.exports = ( env = {} ) => {
 	const isQuickJS = !!env.quickjs;
@@ -20,9 +21,19 @@ module.exports = ( env = {} ) => {
 
 		output: {
 			filename: 'bundle.js',
+			path: path.resolve( __dirname, 'dist' ),
 			publicPath: '',        // relative, not absolute-from-root — matters for file:// resolution
+			chunkLoading: false,
 			// do NOT set `module: true` here — that switches output to real ESM
 		},
+		plugins: [
+			new HtmlWebpackPlugin( {
+				template: 'index.html',
+				//favicon: 'favicon.png',
+				scriptLoading: 'blocking',
+				publicPath: ''
+			} )
+		],
 		target: 'web',
 		module: {
 			rules: [
