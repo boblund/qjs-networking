@@ -1,4 +1,4 @@
-MODULE_DIRS := datachan_c_module socket_c_module webview_c_module
+MODULE_DIRS := datachannel_c_module socket_c_module webview_c_module
 APP_DIRS    := net webrtc webView wsHttpServer
 ALL_DIRS    := $(MODULE_DIRS) $(APP_DIRS)
 
