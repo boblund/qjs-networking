@@ -20,8 +20,7 @@ console.log( `ws path: ${ wsUrl }` );
 const w = new Webview( 1 );
 w.setTitle( 'P2P App' );
 w.setSize( 900, 700 );
-
-w.bind( 'webview', () => true );
+w.init( `window.webview = true` );
 w.bind( 'localBrume', () => std.getenv( 'LOCAL_BRUME' ) );
 
 /**
@@ -155,7 +154,6 @@ w.bind( 'brumeStart', ( token ) => {
 				console.log( `unknown ws message: ${ message }` );
 		}
 	} );
-	console.log( `webviewApp.mjs brumeStart myname: ${ myName }` );
 	return myName;
 } );
 
@@ -194,6 +192,5 @@ if( peer ){
 if ( wsc ) {
 	wsc.close();
 	wsc.waitForClose();
-	console.log( 'wsc thread exited' );
 }
 w.destroy();

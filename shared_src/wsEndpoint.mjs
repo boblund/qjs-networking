@@ -162,7 +162,6 @@ export class WsEndpoint {
 	}
 
 	#handleClose( n ){
-		console.log( `wsEndpoint closing: ${ this.#closing }, n: ${ n }` );
 		if( this.#closing ){
 			closeTcp( this.#fds, this.#dispatch, this.#socket );
 			this.#closing = false;
@@ -241,7 +240,6 @@ export class WsEndpoint {
 				switch( opcode ){
 					case 0x8:	//close
 						if( this.#closing ){
-							console.log( `${ this.#role } received ws close while closing` );
 							if( this.#role == 'server' ){
 								closeTcp( this.#fds, this.#dispatch, this.#socket );
 								this.#closing = false;

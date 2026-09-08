@@ -382,7 +382,6 @@ static JSValue js_dc_send_text(JSContext *ctx, JSValueConst this_val,
 // agent.close()
 static JSValue js_dc_close(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv) {
-		printf( "js_dc_close" );
     dc_ctx_t *dctx = JS_GetOpaque(this_val, dc_class_id);
     if (!dctx) return JS_EXCEPTION;
 
