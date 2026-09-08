@@ -1,5 +1,4 @@
-<!-- index.html -->
-<html>
+﻿<html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,9 +15,12 @@
       <div class="login page center-vertical center-horizontal" data-spa="login">
         <h4>
           Welcome to the Brume P2P example.
-          </br></br>
-          <brume-login></brume-login>
+          </br>
+          Login or signup at
+          <a href="https://brume.occams.solutions">brume.occams.solutions</a>
         </h4>
+        </br></br>
+        <brume-login></brume-login>
       </div>
 
       <div class="app page" data-spa="p2p">
@@ -33,11 +35,7 @@
       </div>
       <ce-dialog></ce-dialog>
     </div>
-
-    <!-- webpack output, plain script — NOT type="module", per the file:// CORS fix -->
-    <!--script src="./bundle.js"></script-->
-		<script src="dist/bundle.js?v=11"></script>
-		<!-- Script replaced with local server port when brume-test-server used -->
-		<script> window.LOCAL_BRUME = undefined; </script>
+    <!-- Script replaced with local server port when brume-test-server used -->
+    <script> window.LOCAL_BRUME = undefined; </script>
   </body>
 </html>
