@@ -4,7 +4,6 @@
  * @see module:cognito
  */
 
-import * as os from 'os';
 import { Client } from 'socket.so';
 import { httpRequest, httpRequestSync } from './httpRequest.mjs';
 
