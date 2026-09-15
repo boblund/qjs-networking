@@ -26,7 +26,6 @@ export function httpRequest( fds, req ){
 		let status;
 
 		let parseHttpResponse = initHttpResponse( ( resp ) => {
-			console.log( `httpRequest.mjs parseHttpResponse` );
 			noContentLength = false;
 			if( resp?.error ){
 				console.log( 'HTTP response error:', resp.error );
