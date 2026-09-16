@@ -1,1 +1,1 @@
-./shared_src/js_dispatch.c
+../shared_src/js_dispatch.c

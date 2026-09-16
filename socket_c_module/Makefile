@@ -25,4 +25,4 @@ socket.so: socket.c js_dispatch.c
 .PHONY: clean
 
 clean:
-	rm -rf *.o
+	rm -rf *.o socket.so
