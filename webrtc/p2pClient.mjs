@@ -10,6 +10,7 @@ import { dispatchInit, dispatchDrain } from 'socket.so';
 const wakeFd = dispatchInit();
 const wakeScratch = new Uint8Array( 64 );
 os.setReadHandler( wakeFd, () => {
+	console.log( 'p2pClient.mjs os.setReadHandler' );
 	os.read( wakeFd, wakeScratch.buffer, 0, wakeScratch.length );
 	dispatchDrain();
 } );
@@ -17,7 +18,7 @@ os.setReadHandler( wakeFd, () => {
 const dec = new TextDecoder;
 
 function makePeer( { initiator = false, label = '', peerName } = {} ){
-	const peer = new QjsPeer( { initiator, label } );
+	const peer = new QjsPeer( { initiator, label, dispatch: true } );
 	peer.createQueues( [ 'cmd', 'chunk', 'transfer' ] );
 	peer.typeToQueue = function( type ){
 		if( ![ 'result', 'eof', 'error', 'ready', 'transfer', 'chunk' ].includes( type ) ) throw( `error unknown peer msg type: ${ type }` );
