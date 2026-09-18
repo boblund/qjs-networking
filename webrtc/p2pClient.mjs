@@ -4,7 +4,7 @@ import { newWsClient } from './wsClient.mjs';
 import { refreshIdToken } from './cognito.mjs';
 import { TextDecoder, fromBase64 } from './EncodeDecode.mjs';
 import { QjsPeer } from './qjsPeer.mjs';
-import { dispatchInit, dispatchDrain } from 'socket.so';
+import { dispatchInit, dispatchDrain } from 'dispatch.so';
 
 
 const wakeFd = dispatchInit();
@@ -104,6 +104,7 @@ async function start() {
 				break;
 
 			case 'offer':
+				console.log( "p2pClient.mjs case 'offer" );
 				peer = makePeer( { label: 'data', peerName: msg.from } );
 				peer.on( 'data', ( msg ) => { peerMsgHandler( peer, msg ); } );
 				peer.on( 'sdp', ( sdp ) => {

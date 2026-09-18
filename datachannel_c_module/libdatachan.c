@@ -130,6 +130,7 @@ static void dc_message_main_thread(void *arg) {
 
 static void dc_emit_msg(dc_ctx_t *ctx, msg_type_t type, const char *msg, uint32_t len) {
     if (!ctx->dispatch) {
+			printf("libdatachan.c dc_emit_msg !dispatch\n");
 			uint8_t header[5];
 			uint32_t net_len = htonl(len);
 			header[0] = (uint8_t)type;
@@ -144,6 +145,7 @@ static void dc_emit_msg(dc_ctx_t *ctx, msg_type_t type, const char *msg, uint32_
         pthread_mutex_unlock(&ctx->on_event_lock);
         return;
     }
+		printf("libdatachan.c dc_emit_msg dispatch\n");
     dc_message_event_t *ev = malloc(sizeof(dc_message_event_t));
     ev->jsctx = ctx->jsctx;
     ev->on_event = JS_DupValue(ctx->jsctx, ctx->on_event);
@@ -245,6 +247,7 @@ static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
 
 		dc_ctx_t *dctx = js_mallocz(ctx, sizeof(dc_ctx_t));
 		dctx->dispatch = JS_ToBool( ctx, js_dispatch );
+		printf("libdatachan.c ctor dispatch: %d\n", dctx->dispatch);
 		const char *stun_host = JS_ToCString(ctx, js_stun_host);
     uint32_t stun_port = 19302;
     JS_ToUint32(ctx, &stun_port, js_stun_port);
@@ -266,6 +269,8 @@ static JSValue js_dc_ctor(JSContext *ctx, JSValueConst new_target,
 			dctx->write_fd = fds[1];
 		} else {
 			// Dispatch: call webview dispatch callback
+			//printf("libdatachan.c ctor calling: js_dispatch_set_impl\n");
+    	//js_dispatch_set_impl(pipe_fallback_impl);
 			dctx->read_fd  = -1;
 			dctx->write_fd = -1;
 		}

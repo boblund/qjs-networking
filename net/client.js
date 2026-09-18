@@ -1,6 +1,8 @@
 import * as os from 'os';
 import * as std from 'std';
-import { Client, dispatchInit, dispatchDrain } from 'socket.so';
+//import { Client, dispatchInit, dispatchDrain } from 'socket.so';
+import { Client } from 'socket.so';
+import { dispatchInit, dispatchDrain } from 'dispatch.so';
 import { TextEncoder } from './EncodeDecode.mjs';
 
 const enc = new TextEncoder;
@@ -8,6 +10,7 @@ const enc = new TextEncoder;
 const wakeFd = dispatchInit();
 const wakeScratch = new Uint8Array( 64 );
 os.setReadHandler( wakeFd, () => {
+	console.log( 'client.js os.setReadHandler' );
 	os.read( wakeFd, wakeScratch.buffer, 0, wakeScratch.length );
 	dispatchDrain();
 } );
@@ -29,7 +32,7 @@ let [ port, host, tls ] = scriptArgs.slice( 1 );
 tls = tls ? true : undefined;
 const client = new Client();
 let fds = client.connect( { host, port, tls } );
-client.setDataHandler( ( bytes ) => clientApp( bytes ) );
+client.setDataHandler( ( bytes ) => { console.log( 'client.js dataHandler' ); clientApp( bytes ); } );
 client.startDispatch();
 let ab = enc.encode( `client sending data` ).buffer;
 const n = os.write( fds[ 1 ], ab, 0, ab.byteLength );

@@ -1,19 +1,19 @@
 QJSC = /usr/local/bin/qjsc
 CC = gcc
-CFLAGS = -O0 -g -Wall -fPIC -I/usr/local/include/quickjs \
-	-I/opt/homebrew/opt/openssl/include \
-	-I../include
+CFLAGS = -O0 -g -Wall -fPIC \
+	-I/usr/local/include/quickjs \
+	-I/opt/homebrew/opt/openssl/include
 
 LDFLAGS = -L/usr/local/lib/quickjs -lquickjs \
 	-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
-	-L../lib -lqjssocket \
+	-L../lib -lqjssocket -lqjsdispatch \
 	-lm -lpthread -ldl
 
 all: client server
 
 # client
 client.c: client.js EncodeDecode.mjs
-	$(QJSC) -e -M socket.so,socket -o client.c client.js
+	$(QJSC) -e -M socket.so,socket -M dispatch.so,dispatch -o client.c client.js
 
 client.o: client.c
 	$(CC) $(CFLAGS) -c client.c -o client.o

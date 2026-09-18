@@ -1,4 +1,6 @@
-/* js_dispatch.c */
+// dispatch.c — a genuine QuickJS module, thin wrapper around js_dispatch.c's C API
+
+#include "quickjs.h"
 #include "js_dispatch.h"
 #include <pthread.h>
 #include <stdlib.h>
@@ -18,6 +20,7 @@ static pending_dispatch_t *g_pipe_queue = NULL;
 static int g_wake_write_fd = -1;
 
 void js_dispatch_set_impl(js_dispatch_impl_fn impl) {
+		printf("dispatch.c js_dispatch_set_impl\n");
     g_impl = impl;
 }
 
@@ -25,7 +28,7 @@ void js_dispatch_init_pipe_fallback(int wake_write_fd) {
     g_wake_write_fd = wake_write_fd;
 }
 
-static void pipe_fallback_impl(js_dispatch_fn fn, void *arg) {
+void pipe_fallback_impl(js_dispatch_fn fn, void *arg) {
 		printf("js_dispatch.c pipe_fallback_impl\n");
     pending_dispatch_t *node = malloc(sizeof(*node));
     node->fn = fn;
@@ -67,4 +70,38 @@ void js_dispatch_to_main(js_dispatch_fn fn, void *arg) {
     } else {
         fprintf(stderr, "js_dispatch_to_main: no dispatch impl registered\n");
     }
+}
+
+static JSValue js_dispatch_init(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    int fds[2];
+    if (pipe(fds) != 0) return JS_ThrowInternalError(ctx, "pipe() failed");
+    js_dispatch_init_pipe_fallback(fds[1]);
+    return JS_NewInt32(ctx, fds[0]);
+}
+
+static JSValue js_dispatch_drain(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    js_dispatch_drain_pipe_queue();
+    return JS_UNDEFINED;
+}
+
+static int js_dispatch_module_init(JSContext *ctx, JSModuleDef *m) {
+    JS_SetModuleExport(ctx, m, "dispatchInit",
+        JS_NewCFunction(ctx, js_dispatch_init, "dispatchInit", 0));
+    JS_SetModuleExport(ctx, m, "dispatchDrain",
+        JS_NewCFunction(ctx, js_dispatch_drain, "dispatchDrain", 0));
+    return 0;
+}
+
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_dispatch
+#endif
+
+JSModuleDef *JS_INIT_MODULE(JSContext *ctx, const char *module_name) {
+    JSModuleDef *m = JS_NewCModule(ctx, module_name, js_dispatch_module_init);
+    if (!m) return NULL;
+    JS_AddModuleExport(ctx, m, "dispatchInit");
+    JS_AddModuleExport(ctx, m, "dispatchDrain");
+    return m;
 }

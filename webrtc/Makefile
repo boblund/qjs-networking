@@ -8,13 +8,13 @@ LDFLAGS = \
 			-L/usr/local/lib/quickjs -lquickjs \
 			-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
 			-L../lib/libdatachannel -ldatachannel -lusrsctp -ljuice \
-			-L../lib -lqjsdatachannel -lqjssocket \
+			-L../lib -lqjsdispatch -lqjsdatachannel -lqjssocket \
 			-lm -lpthread -ldl
 
 all: p2pClient
 
 p2pClient.c: p2pClient.mjs cognito.mjs parseUrl.mjs wsEndpoint.mjs wsClient.mjs EncodeDecode.mjs qjsPeer.mjs priorityChannel.mjs
-	$(QJSC) -e -M socket.so,socket -M dc.so,dc -o p2pClient.c p2pClient.mjs
+	$(QJSC) -e -M dispatch.so,dispatch -M socket.so,socket -M dc.so,dc -o p2pClient.c p2pClient.mjs
 
 p2pClient.o: p2pClient.c
 	$(CC) $(CFLAGS) -c p2pClient.c -o p2pClient.o
