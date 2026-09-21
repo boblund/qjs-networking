@@ -222,8 +222,6 @@ static JSValue js_client_ctor(JSContext *ctx,
 		pthread_mutex_init(&s->close_lock, NULL);
 		pthread_cond_init(&s->close_cond, NULL);
 		s->thread_exited = true;   /* no background thread exists yet */
-		//printf("socket.c client ctor: calling js_dispatch_set_impl\n");
-		//js_dispatch_set_impl(pipe_fallback_impl);
 
     /* using new_target to get the prototype is necessary when the
        class is extended. */
