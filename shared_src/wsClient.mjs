@@ -31,8 +31,8 @@ function findHeaderEnd( buf ){
  * @returns new {@link module:wsEndpoint.WsEndpoint WsEndpoint}
  */
 
-export function newWsClient( url, token = undefined ){
-	const { protocol, addr, port, path } = parseUrl( url );
+export function newWsClient( { wsUrl, token = undefined, dispatch = false } ){
+	const { protocol, addr, port, path } = parseUrl( wsUrl );
 	const host = addr;
 	const wsPath = path ?? '/';
 	const req = [
@@ -84,11 +84,7 @@ export function newWsClient( url, token = undefined ){
 	}
 	console.log( 'ws upgrade' );
 
-	const wsEndpoint = new WsEndpoint( fds, socket, 'client', { dispatch: true } );
-
-	// ordering matters: register the handler BEFORE startDispatch, so nothing
-	// drained during the native-side mode flip is silently discarded
-	socket.setDataHandler( ( bytes ) => wsEndpoint.feed( bytes ) );
+	const wsEndpoint = new WsEndpoint( fds, socket, 'client', { dispatch } );
 
 	// any bytes that arrived after the header in the same read — real WS
 	// frame data the server sent immediately following the 101 response
@@ -96,7 +92,12 @@ export function newWsClient( url, token = undefined ){
 		wsEndpoint.feed( acc.slice( headerEnd ) );
 	}
 
-	socket.startDispatch();
+	if( dispatch ){
+		// ordering matters: register the handler BEFORE startDispatch, so nothing
+		// drained during the native-side mode flip is silently discarded
+		socket.setDataHandler( ( bytes ) => wsEndpoint.feed( bytes ) );
+		socket.startDispatch();
+	}
 
 	return wsEndpoint;
 };
