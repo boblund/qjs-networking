@@ -1,6 +1,6 @@
 CC = clang
 
-CFLAGS = -O2 -g -Wall -fPIC  -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include  -I../include
+CFLAGS = -O2 -Wall -fPIC  -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include  -I../include
 CXXFLAGS = -std=c++11 -DWEBVIEW_COCOA -I.
 LDFLAGS = \
 	-L/usr/local/lib/quickjs -lquickjs \
