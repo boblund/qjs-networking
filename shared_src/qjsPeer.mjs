@@ -154,7 +154,6 @@ function dcMsgHandler( qjspeer ) {
 	const dec = new TextDecoder();
 
 	handleEvent = ( type, bytes ) => {
-		console.log( `qjsPeer.mjs hanleEvent type: ${ type }` );
 		switch ( type ) {
 			case DataChannel.MSG_SDP:
 				qjspeer.listeners.sdp( dec.decode( bytes ) );

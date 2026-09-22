@@ -20,7 +20,6 @@ static pending_dispatch_t *g_pipe_queue = NULL;
 static int g_wake_write_fd = -1;
 
 void js_dispatch_set_impl(js_dispatch_impl_fn impl) {
-		printf("dispatch.c js_dispatch_set_impl\n");
     g_impl = impl;
 }
 
@@ -29,7 +28,6 @@ void js_dispatch_init_pipe_fallback(int wake_write_fd) {
 }
 
 void pipe_fallback_impl(js_dispatch_fn fn, void *arg) {
-		printf("js_dispatch.c pipe_fallback_impl\n");
     pending_dispatch_t *node = malloc(sizeof(*node));
     node->fn = fn;
     node->arg = arg;
@@ -47,7 +45,6 @@ void pipe_fallback_impl(js_dispatch_fn fn, void *arg) {
 }
 
 void js_dispatch_drain_pipe_queue(void) {
-		printf("js_dispatch.c js_dispatch_drain_pipe_queue\n");
     pthread_mutex_lock(&g_pipe_lock);
     pending_dispatch_t *head = g_pipe_queue;
     g_pipe_queue = NULL;
@@ -62,7 +59,6 @@ void js_dispatch_drain_pipe_queue(void) {
 }
 
 void js_dispatch_to_main(js_dispatch_fn fn, void *arg) {
-		printf("js_dispatch.c js_dispatch_to_main\n");
     if (g_impl) {
         g_impl(fn, arg);
     } else if (g_wake_write_fd >= 0) {
