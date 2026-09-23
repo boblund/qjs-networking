@@ -1,12 +1,14 @@
 QJSC = /usr/local/bin/qjsc
 CC = gcc
-CFLAGS = -O2 -Wall -fPIC -I/usr/local/include/quickjs -I/opt/homebrew/opt/openssl/include
-LDFLAGS = -L/usr/local/lib/quickjs -lquickjs -L/opt/homebrew/opt/openssl/lib -lssl -lcrypto -lm -lpthread -ldl
+CFLAGS = \
+	-O2 -Wall -fPIC \
+	-I/usr/local/include/quickjs \
 
-SOCKET_C = ../socket.c
-ENCODEDECODE_MJS = ../EncodeDecode.mjs
-WSENDPOINT_MJS = ../wsEndpoint.mjs
-all: wsHttpServer
+LDFLAGS = \
+	-L/usr/local/lib/quickjs -lquickjs \
+	-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
+	-L../lib -lqjssocket -lqjsdispatch \
+	-lm -lpthread -ldl
 
 OS := $(shell uname -s)
 JQ := $(shell which jq)
@@ -21,13 +23,7 @@ endif
 
 all: wsHttpServer
 
-socket.o: $(SOCKET_C)
-	$(CC) $(CFLAGS) -c $(SOCKET_C) -o socket.o
-
-socket.so: $(SOCKET_C)
-	$(CC) $(CFLAGS) -shared -DJS_SHARED_LIBRARY -o socket.so $(SOCKET_C) $(LDFLAGS)
-
-bundleFiles: bundleFiles.mjs $(ENCODEDECODE_MJS)
+bundleFiles: bundleFiles.mjs EncodeDecode.mjs
 	$(QJSC) -o bundleFiles bundleFiles.mjs
 
 HTTP_PATHS_FILES := $(shell find files -type f) #$(wildcard files/*)
@@ -37,17 +33,16 @@ print-http:
 httpPaths.mjs: $(HTTP_PATHS_FILES) bundleFiles
 	./bundleFiles $(HTTP_PATHS_FILES)
 
-# wsHttpServer
-wsHttpServer.c: wsHttpServer.js httpPaths.mjs $(ENCODEDECODE_MJS) http.mjs ws.mjs sha1.mjs $(WSENDPOINT_MJS)
+wsHttpServer.c: wsHttpServer.js httpPaths.mjs EncodeDecode.mjs http.mjs ws.mjs sha1.mjs wsEndpoint.mjs
 	$(QJSC) -e -M socket.so,socket -o wsHttpServer.c wsHttpServer.js
 
 wsHttpServer.o: wsHttpServer.c
 	$(CC) $(CFLAGS) -c wsHttpServer.c -o wsHttpServer.o
 
-wsHttpServer: wsHttpServer.o socket.o
-	$(CC) $(LDFLAGS) -o wsHttpServer wsHttpServer.o socket.o
+wsHttpServer: wsHttpServer.o
+	$(CC) $(LDFLAGS) -o wsHttpServer wsHttpServer.o
 
 .PHONY: clean
 
 clean:
-	rm -f *.o wsHttpServer.c bundleFiles
+	rm -f *.o httpPaths.mjs wsHttpServer.c bundleFiles wsHttpServer

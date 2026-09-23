@@ -1,0 +1,11 @@
+.DS_Store
+.vscode
+node_modules
+cert.pem
+key.pem
+docs
+dist
+lib
+include/libdatachannel
+wsHttpServer/orig-files
+*.so

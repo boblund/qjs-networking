@@ -3,7 +3,7 @@ import * as std from 'std';
 import * as http from 'http.mjs';
 import * as ws from 'ws.mjs';
 import { paths } from 'httpPaths.mjs';
-import { fromBase64, TextEncoder } from '../EncodeDecode.mjs';
+import { fromBase64, TextEncoder } from './EncodeDecode.mjs';
 
 const enc = new TextEncoder;
 const key = '../key.pem';

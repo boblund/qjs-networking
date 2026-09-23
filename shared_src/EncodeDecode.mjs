@@ -1,10 +1,33 @@
-export { TextEncoder, TextDecoder, toBase64, fromBase64 };
+/**
+ * EncodeDecode module.
+ * @module EncodeDecode
+ * @see module:EncodeDecode
+ */
 
 Uint8Array.prototype.toHex = function () {
 	return Array.from( this, byte => `0x${ byte.toString( 16 ).padStart( 2, '0' ) }` );
 };
 
-function TextEncoder() {}
+/**
+ * Encodes JavaScript strings as UTF-8 byte sequences.
+ *
+ * @constructor
+ */
+
+export function TextEncoder() {}
+
+/**
+ * Encodes a string into a UTF-8 byte array.
+ *
+ * Valid UTF-16 surrogate pairs are combined into their corresponding Unicode
+ * code points before encoding. Unpaired high or low surrogates are encoded as
+ * U+FFFD (EF BF BD in UTF-8).
+ *
+ * @param {string} str - The string to encode.
+ * @returns {Uint8Array} A newly allocated array containing the UTF-8 encoded
+ *   bytes for {@link str}.
+ */
+
 TextEncoder.prototype.encode = function( str ) {
 	let buf = new Uint8Array( str.length * 4 );
 	let j = 0;
@@ -42,7 +65,21 @@ TextEncoder.prototype.encode = function( str ) {
 	return buf.slice( 0, j );
 };
 
-function TextDecoder() {}
+/**
+ * Decodes JavaScript UTF-8 byte sequences as strings.
+ *
+ * @constructor
+ */
+export function TextDecoder() {}
+
+/**
+ * Decodes a UTF-8 byte array into a string.
+ *
+ * @param {Uint8Array} uint8 - The Uint8Array to decode.
+ * @returns {string} A newly allocated string containing the decoded
+ *   bytes for {@link unit8}.
+ */
+
 TextDecoder.prototype.decode = function( uint8 ) {
 	let str = '';
 	for ( let i = 0; i < uint8.length; ) {
@@ -78,7 +115,16 @@ TextDecoder.prototype.decode = function( uint8 ) {
 
 const b64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-function toBase64( input ) {
+/**
+ * Encodes JavaScript strings Base64 byte sequences.
+ *
+ * @function toBase64
+ * @param {string} input - The string to encode.
+ * @returns {string} A newly allocated string containing the base64 encoded
+ *   bytes for {@link input}.
+*/
+
+export function toBase64( input ) {
 	if( !( input instanceof Uint8Array || ( input instanceof String || typeof input === 'string' ) ) ){
 		throw( 'error: input not Uint8Array or string' );
 	}
@@ -107,7 +153,16 @@ function toBase64( input ) {
 	return output;
 }
 
-function fromBase64( b64String ) {
+/**
+ * Decodes JavaScript strings Base64 byte sequences.
+ *
+ * @function fromBase64
+ * @param {string} b64String - The base64 string to decode.
+ * @returns {string} A newly allocated string containing the decoded base64
+ *   bytes for {@link b64String}.
+*/
+
+export function fromBase64( b64String ) {
 	//const chars = b64String.replaceAll( '=', '' );
 	let bitBuffer = 0;
 	let bitCount = 0;

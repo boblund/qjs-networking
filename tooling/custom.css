@@ -1,0 +1,26 @@
+/* ./tooling/custom.css */
+article h4.name {
+	margin-top: 2.5em;
+	padding-top: 1em;
+	border-top: 1px solid #ddd;
+}
+
+nav h3::before {
+	content: '▾';
+	display: inline-block;
+	margin-right: 0.3em;
+	transition: transform 0.15s ease;
+}
+
+nav h3.collapsed::before {
+	transform: rotate(-90deg);
+}
+
+b, strong {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-weight: bold;
+}
+
+table {
+	margin-top: 0.75em;
+}
