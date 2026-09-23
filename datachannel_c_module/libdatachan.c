@@ -86,7 +86,7 @@ typedef struct {
     uint32_t   len;
 } dc_message_event_t;
 
-static void dc_message_main_thread(void *arg) {
+static void main_thread_dispatch_fn(void *arg) {
     dc_message_event_t *ev = (dc_message_event_t *)arg;
     JSContext *ctx = ev->jsctx;
 
@@ -158,7 +158,7 @@ static void dc_emit_msg(dc_ctx_t *ctx, msg_type_t type, const char *msg, uint32_
 			ev->data = NULL;
 		}
 
-    js_dispatch_to_main(dc_message_main_thread, ev);
+    js_dispatch_to_main(main_thread_dispatch_fn, ev);
 }
 
 static void cb_gathering_state(int pc, rtcGatheringState state, void *user_ptr) {
