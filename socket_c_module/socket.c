@@ -109,7 +109,7 @@ typedef struct {
     bool       closed;
 } client_dispatch_event_t;
 
-static void dispatch_main_thread_fn(void *arg) {
+static void main_thread_dispatch_fn(void *arg) {
     client_dispatch_event_t *ev = (client_dispatch_event_t *)arg;
     JSContext *ctx = ev->jsctx;
 
@@ -164,7 +164,7 @@ static void client_emit_data(JSClientData *s, const uint8_t *data, uint32_t len,
     } else {
         ev->data = NULL;
     }
-    js_dispatch_to_main(dispatch_main_thread_fn, ev);
+    js_dispatch_to_main(main_thread_dispatch_fn, ev);
 }
 
 static JSClassID js_client_class_id;
