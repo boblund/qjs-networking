@@ -1,4 +1,5 @@
 #include "quickjs.h"
+#include "js_dispatch.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdatomic.h>
@@ -108,7 +109,7 @@ typedef struct {
     bool       closed;
 } client_dispatch_event_t;
 
-static void client_dispatch_main_thread(void *arg) {
+static void dispatch_main_thread_fn(void *arg) {
     client_dispatch_event_t *ev = (client_dispatch_event_t *)arg;
     JSContext *ctx = ev->jsctx;
 
@@ -163,7 +164,7 @@ static void client_emit_data(JSClientData *s, const uint8_t *data, uint32_t len,
     } else {
         ev->data = NULL;
     }
-    js_dispatch_to_main(client_dispatch_main_thread, ev);
+    js_dispatch_to_main(dispatch_main_thread_fn, ev);
 }
 
 static JSClassID js_client_class_id;

@@ -8,3 +8,4 @@ dist
 lib
 include/libdatachannel
 wsHttpServer/orig-files
+*.so

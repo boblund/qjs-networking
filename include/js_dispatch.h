@@ -19,6 +19,7 @@ void js_dispatch_set_impl(js_dispatch_impl_fn impl);
    wake_write_fd is the write end of a pipe whose read end the JS side
    registers with os.setReadHandler. */
 void js_dispatch_init_pipe_fallback(int wake_write_fd);
+void pipe_fallback_impl(js_dispatch_fn fn, void *arg);
 
 /* Called from the JS side's os.setReadHandler callback on the pipe's
    read end, after draining the wake byte(s). Runs all queued callbacks. */

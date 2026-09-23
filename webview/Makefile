@@ -11,7 +11,7 @@ LDFLAGS = \
 	-L/usr/local/lib/quickjs -lquickjs \
 	-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
 	-L../lib/libdatachannel -ldatachannel -lusrsctp -ljuice \
-	-L../lib -lqjsdatachannel -lqjswebview -lqjssocket\
+	-L../lib -lqjsdispatch -lqjsdatachannel -lqjswebview -lqjssocket\
 	-framework WebKit -framework Cocoa
 
 all: webviewApp

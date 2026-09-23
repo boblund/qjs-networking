@@ -15,18 +15,16 @@ all: ../lib/libqjswebview.a
 impl.o: impl.cc webview.h
 	$(CXX) -c impl.cc $(CXXFLAGS) -o impl.o
 
-js_dispatch.o: js_dispatch.c
-	$(CC) $(CFLAGS) -c js_dispatch.c -o js_dispatch.o
-
 # webview
 webview.o: webview.c webview.h
 	$(CC) $(CFLAGS) -c webview.c -o webview.o
 
-webview.so: webview.o impl.o js_dispatch.o
-	$(CXX) -shared -o webview.so webview.o js_dispatch.o impl.o $(LDFLAGS) -framework WebKit -framework Cocoa
+webview.so: webview.o impl.o
+	$(CXX) -shared -o webview.so webview.o impl.o $(LDFLAGS) -framework WebKit -framework Cocoa
 
-../lib/libqjswebview.a: webview.o js_dispatch.o impl.o
+../lib/libqjswebview.a: webview.o impl.o
 	mkdir -p ../lib
+	rm -f $@
 	ar rcs $@ $^
 
 .PHONY: clean

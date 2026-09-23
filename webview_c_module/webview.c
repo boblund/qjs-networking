@@ -15,7 +15,7 @@ static webview_t g_dispatch_w = NULL;   /* single-webview assumption for now */
 
 typedef struct { js_dispatch_fn fn; void *arg; } dispatch_wrap_t;
 
-static void webview_dispatch_trampoline(webview_t w, void *arg) {
+static void webview_dispatch_fn(webview_t w, void *arg) {
     dispatch_wrap_t *dw = (dispatch_wrap_t *)arg;
     dw->fn(dw->arg);
     free(dw);
@@ -25,7 +25,7 @@ static void webview_dispatch_impl(js_dispatch_fn fn, void *arg) {
     dispatch_wrap_t *dw = malloc(sizeof(*dw));
     dw->fn = fn;
     dw->arg = arg;
-    webview_dispatch(g_dispatch_w, webview_dispatch_trampoline, dw);
+    webview_dispatch(g_dispatch_w, webview_dispatch_fn, dw);
 }
 
 typedef struct bind_ctx {

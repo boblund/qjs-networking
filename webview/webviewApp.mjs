@@ -121,7 +121,7 @@ w.bind( 'brumeLogin', ( username, password ) => {
 
 w.bind( 'brumeStart', ( token ) => {
 	myName = usernameFromToken( token );
-	wsc = newWsClient( wsUrl, token );
+	wsc = newWsClient( { wsUrl, token, dispatch: true } );
 
 	wsc.on( 'close', ( reason ) => {
 		console.log( `wsc close: ${ JSON.stringify( reason ) }` );

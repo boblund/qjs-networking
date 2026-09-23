@@ -7,7 +7,7 @@ CFLAGS = \
 LDFLAGS = \
 	-L/usr/local/lib/quickjs -lquickjs \
 	-L/opt/homebrew/opt/openssl/lib -lssl -lcrypto \
-	-L../lib -lqjssocket \
+	-L../lib -lqjssocket -lqjsdispatch \
 	-lm -lpthread -ldl
 
 OS := $(shell uname -s)

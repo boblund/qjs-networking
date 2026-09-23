@@ -1,24 +1,24 @@
 # qjs-networking
 
-This repositor provides networking capabilities for Bellard QuickJS version 2025-09-13. Two C modules have been developed that add the
-core network connectivity:
+This repository contains C module networking capabilities for Bellard QuickJS version 2025-09-13:
 
 - **socket.c** defines TCP and TLS socket Client and Server classes
 - **libdatachan.c** defines a DataChannel class that creates a WebRTC back-pressuredatachannel
+
+A third C module, **webview.c** adds a webview-based browser to QuickJS that supports the two networking C modules.
 
 These C modules are used in the following example QuickJS applications:
 
 - **net** TCP socket client and server with TLS support
 - **wsHttpServer** Websocket and HTTP server
-- **webrtc** peer-to-peer client file transfer over webrtc data channel that uses the [Brume](https://brume.occams.solutions) signaling server
-- **webview**
-
-A webview C module enables QuickJS app UI with integrated socket and datachannel capabilites.
+- **webrtc** Peer-to-peer client file transfer over webrtc data channel that uses the [Brume](https://brume.occams.solutions) signaling server
+- **webview** A webview browser integrated socket and datachannel capabilites.
 
 ## Repository Organization
 
 - **brume-test-server/** local websocket and http server for testing
 - **datachannel_c_module/** source and build for libqjsdatachannel
+- **dispatch_c_module/** source and build for libqjsdispatch
 - **docs/** jsdoc generated documents for shared_src
 - **include/** common C headers
 - **lib/** generated for socket, datachannel and webview libs
@@ -102,77 +102,30 @@ Each application has its own README that describes how to use the application. T
 
 ## Note For Developers
 
-The QuickJS socket and datachannel C modules use threads for network communication and run asychronously with the JS main thread and WebView application. QuickJS and WebView have different methods available for threads to inject events to be processed:
+Qjs-networking socket and WebRTC C nodules pass asynchronous network data and events to generated on C background threads to the JS main thread in different ways:
 
-- **FD Mode** The C module creates a pipe and gives the read file descriptor to JS. When a event occurs in a C module thread, it writes message_type_length, meesage_type, message_data to the pipe.
+- **FD Mode** In a headless QuickJS environment that supports ```os.setReadHandler(fd, handlerFn)```, the C backend:
+  - Creates a socket (TCP socket case) or pair of pipes to a background thread (TLS socket or WebRTC datachannel case)
+  - Passes the read FD back to JS to be used with setReadHandler
+  - Writes network events/data to the write FD
 
-JS does ``` os.setReadHandler( fd, handler_function ); ``` and the handler_function reads the pipe and processes the message.
+  JS on the main thread loops on ```os.setReadHandler(fd, handlerFn)``` to read backend events.
 
-- **Dispatch Mode*** A WebView main thread blocks on ```webview.run()```; os.setReadHandler will not run when an event is written to the pipe. Instead of writing the event_buf to a file descriptor, the C module thread creates an event with the message_type and message_data and calls
+- **Dispatch Mode** The QuickJS environment needs to expose an interface that the backend uses to inject network data/events into the JS main thread. The Webview C Module uses the C ```webview_dispatch(window, handlerFn, event)```:
+  - Happens once:
+    - JS: ```cModClassInstance.setEventHandler( handlerFn )``` registers ```handlerFn``` as js_callback that gets stored in the context of the C Module main thread.
+    - The webview ctor registers a function ```webview_dispatch_impl```.
 
-```
-js_dispatch_to_main(dc_message_main_thread, ev);
-```
+  - On datachannel background channel message arrival:
+    - dc_emit_msg: ev = { js_callback, msg_type, msg_length, data },  calls js_dispatch_to_main(main_thread_dispatch_fn, ev).
+    - js_dispatch_to_main: calls webview_dispatch_impl(main_thread_dispatch_fn, ev)
+    - webview_dispatch_impl: sets dw = {main_thread_dispatch_fn, ev} and then calls ```webview_dispatch( webview_dispatch_fn, dw)``` that returns immediately, allowing the background thread to continue running.
 
+  - At some point later on the main thread the GUI event loop runs ```webview_dispatch_fn(dw)```:
+    - webview_dispatch_fn: ```dw->main_thread_dispatch_fn(dw->ev)```
+    - main_thread_dispatch_fn: js_arg is constructed from ev fields, then calls ```ev->js_callback(js_arg)``` that invoke the JS message handler.
 
-
-
-
-## Overview
-
-Two QuickJS C modules provide the core network connectivity:
-- socket.c exposes Client and Server classes that provide a JavaScript (JS) TCP and TCP TLS socket API.
-- libdatachan.c exposes a subset of libdatachannel C apis to JS for creating webrtc data channels with multiple priority queues.
-
-The three directories net, webrtc and wsHttpServer are examples of socket client/server, p2p using webrtc and websocket/HTTP server, respectively. Each directory has its own README.md that describes how to use the code.
-
-The repo root directory contains socket.c, EncodeDecode.c wsEndpoint.mjs used in net, webrtc and wsHttpServer.
-
-## EncodeDecode.mjs
-
-Exports classes:
-- **TextEncoder/TextDecode** Convert UTF-8 string to/from Uint8Array
-- **toBase64/fromBase64** Convert base64 string from/to Uint8Array
-
-## wsEndpoint.mjs
-
-RFC6455 compliant websocket implementation that supports client or server. It is used in webrtc for a client that communicates with an AWS Lambda-based signaling server and in wsHttpServer for a websocket server.
-
-### Constructor
-
-```
-const wsClient = new WsEndpoint(fd, socket, role);
-const wsServer = new WsEndpoint(fd, socket, role);
-```
-- fd: socket file descriptor
-- socket: the socket instance reference stored to insure it's not GC'd in instance's lifetime.
-- role: 'client' or 'server'
-
-### Events
-
-- message: Message received: string if message is text or Uint8array if binary
-- close: Websocket closed with string close reason
-- pong: Pong control message received
-
-```
-wsClient.on( 'message', data => { ... } );
-wsClient.on( 'close', reason => { ... } );
-wsClient.on( 'pong', () => { ... } );
-// same for wsServer
-```
-
-### Methods
-
-- send: send string or Unit8Array message
-- ping: send ping
-- close: send close with numeric code and string reason
-
-```
-wsClient.send( messgae );
-wsClient.ping();
-wsClient.close( code, reason );
-// same for wsServer
-```
+The net and webrtc examples are both headless QuickJS applications and use **FD Mode**. The webview example requires **Dispatch Mode**. Headless QuickJS apps can be run in **Dispatch Mode**. While QuickJS does not have an equivalent to ```webview_dispatch```, sending a wake_up message over a pipe to be read by ```os.setReadHandler``` accomplishes a similar thing. Then, the readHandler function can pull events/data from the C modules. While **FD Mode** is simpler, there may be scenarios where pipe capacity or speed constraints make **Dispatch Mode** a better fit. The examples client.js-dispatch and p2pClinet.mjs-dispatch illustrate how this is done.
 
 # License
 
