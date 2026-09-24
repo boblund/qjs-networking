@@ -44,10 +44,8 @@ const server = createServer( !ROOT ? undefined : async ( req, res ) => {
 		}*/
 
 		let data = await readFile( filePath );
-		if( urlPath == '/index.html' && process.env?.LOCAL_BRUME )
-			data = data.toString( 'utf8' ).replace(
-				'window.LOCAL_BRUME = undefined', `window.LOCAL_BRUME = true`
-			);
+		if( urlPath == '/index.html' )
+			data = data.toString( 'utf8' ).replace( 'window.LOCAL_BRUME = undefined', `window.LOCAL_BRUME = true` );
 		const ext = extname( filePath ).toLowerCase();
 		res.writeHead( 200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' } );
 		res.end( data );
